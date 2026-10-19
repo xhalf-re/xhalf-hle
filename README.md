@@ -1,8 +1,8 @@
 # X half HLE
 
-Run native ARM firmware, ThreadX and the camera's original menus in your browser. This is an unofficial project. You supply your own complete `FPUPDATE.DAT`; the file is processed locally and is never uploaded or saved by the app.
+[Open the app on GitHub Pages](https://xhalf-re.github.io/xhalf-hle/)
 
-[Open the app](https://xndcn.github.io/xhalf-hle/)
+Run native ARM firmware, ThreadX and the camera's original menus in your browser. This is an unofficial project. You supply your own complete `FPUPDATE.DAT`; the file is processed locally and is never uploaded or saved by the app.
 
 ![The web shell before firmware is loaded](docs/images/shell.jpg)
 

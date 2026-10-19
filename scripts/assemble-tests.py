@@ -52,11 +52,3 @@ if '--check' in sys.argv:
 else:
     target.write_text(json.dumps(storage_driver) + '\n')
 
-subprocess.run(['clang-15', '--target=armv7-none-eabi', '-c', root / 'src/sdk/shortcut-irq.s', '-o', cache / 'shortcut-irq.o'], check=True)
-subprocess.run(['llvm-objcopy-15', '-O', 'binary', '--only-section=.text', cache / 'shortcut-irq.o', cache / 'shortcut-irq.bin'], check=True)
-shortcut_irq=list((cache / 'shortcut-irq.bin').read_bytes())
-target=root / 'src/sdk/shortcut-irq.json'
-if '--check' in sys.argv:
-    assert json.loads(target.read_text()) == shortcut_irq, 'shortcut IRQ bridge fixture is stale'
-else:
-    target.write_text(json.dumps(shortcut_irq) + '\n')

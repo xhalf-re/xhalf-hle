@@ -35,7 +35,7 @@ Private (real firmware) tests and firmware-dependent browser specs skip themselv
 
 After changing `src/cpu/slice.c`, `patches/*.patch` or compiler flags, rebuild Wasm before `npm run build` / browser tests — JS and Wasm outputs must be a matching pair, and the runtime requires the `_xhle_*` exports (no fallback).
 
-After editing any ARM assembly (`tests/arm/contracts.s`, `src/sdk/*.s`), run `python3 scripts/assemble-tests.py` (without `--check`) to regenerate the committed `*.json` byte fixtures (`tests/arm/programs.json`, `src/sdk/*.json`). `call-thunk.s` must stay byte-identical to the `thunk` program in `contracts.s`. Note: the script also references `src/sdk/shortcut-irq.s`, which is not currently in the tree.
+After editing any ARM assembly (`tests/arm/contracts.s`, `src/sdk/*.s`), run `python3 scripts/assemble-tests.py` (without `--check`) to regenerate the committed `*.json` byte fixtures (`tests/arm/programs.json`, `src/sdk/*.json`). `call-thunk.s` must stay byte-identical to the `thunk` program in `contracts.s`.
 
 Formatting is Prettier (`singleQuote`, `trailingComma: all`); `npm run format` to fix.
 
