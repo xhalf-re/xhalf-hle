@@ -1,0 +1,25 @@
+name: Checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10.12'
+      - run: python3 -m pip install cmake==4.0.2
+      - run: sudo apt-get update && sudo apt-get install -y clang-15 llvm-15
+      - run: python3 scripts/assemble-tests.py --check
+      - run: python3 scripts/build-wasm.py
+      - run: npm run check
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: echo 'Real firmware tests NOT RUN in public CI; private firmware verification is required.' >> "$GITHUB_STEP_SUMMARY"

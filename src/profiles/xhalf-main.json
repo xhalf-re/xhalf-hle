@@ -1,0 +1,1020 @@
+{
+  "schema": 1,
+  "id": "xhalf-main-21aa469f",
+  "target": "main",
+  "status": "supported",
+  "description": "Current independently verified X half main firmware; all addresses are runtime addresses.",
+  "machine": "spca6500",
+  "sdk": "spca6500-arm32-v1",
+  "firmware": {
+    "sha256": "21aa469fb40dd73bf702661d6c5339c4d831f9d3dc75dfee301608ffe5b6d52e",
+    "payload_sha256": "80350bd2bc37b4ce985742ff85a747f7c7ad1ed9be401534ba57ac3262f1d923",
+    "package_sha256": "3c1c662957003e5bab4f2a8fcb184180d72a92dbdec4fbeea030dac0df755d68"
+  },
+  "boot": {
+    "load_base": 1073741824,
+    "zero_from": 1088650240,
+    "zero_to": 1088849984,
+    "sram_copy": [1088650240, 1056964608, 1652]
+  },
+  "symbols": {
+    "vfs.mount": {
+      "address": 1073806884,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "analysis_name": "fn_vfsMount",
+      "guard": {
+        "length": 16,
+        "sha256": "c33e568814124669a9d3abefc0040370af9ff2c989b4e57a0479a3dbe0663b80"
+      }
+    },
+    "board.power_control": {
+      "address": 1074940788,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "42f48d122417ebbf4b56e33d1efb21baaaa3f77734106b8dc43ef6711cb40346"
+      }
+    },
+    "board.power_probe": {
+      "address": 1074016800,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "920c6a1a170cf4737b63ec3974552678d5452807909b67baa725c9b3f71caea7"
+      }
+    },
+    "board.focus_ring_read": {
+      "address": 1075156036,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "920c6a1a170cf4737b63ec3974552678d5452807909b67baa725c9b3f71caea7"
+      }
+    },
+    "board.thermal_read": {
+      "address": 1073860732,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "3c17b4659d3318823f67563a93942ce6ff547fe47fa112c802b913d2c3229371"
+      }
+    },
+    "board.preview_geometry": {
+      "address": 1074376676,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "e514bfb389a42ccb037b4eb99b7146966b3e9dd674595fd6d40de34a1035ca0a"
+      }
+    },
+    "boot.key_adc": {
+      "address": 1074930784,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "478c0c48309b94227f3b47499ddc4fa6f3c72d42c47feb51b6afb45f78cc0ca5"
+      }
+    },
+    "libc.memcpy": {
+      "address": 1073777548,
+      "kind": "function",
+      "optional": true,
+      "group": "accel.memory",
+      "guard": {
+        "length": 16,
+        "sha256": "9a52ce197941360033725645ee2cc04327901c1bd764f7869369d51506856300"
+      }
+    },
+    "libc.memset": {
+      "address": 1073794544,
+      "kind": "function",
+      "optional": true,
+      "group": "accel.memory",
+      "guard": {
+        "length": 16,
+        "sha256": "96761afcfa39957846bbd404c883ba7d1f3f496e85b30bfc75d9a4c6ad49b755"
+      }
+    },
+    "image.rect_fill": {
+      "address": 1075423084,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "9c368b76ae8e4a58bd824666fe7218f4ba54426a8bdd9cea43f5bcf95fc35d36"
+      }
+    },
+    "image.combine": {
+      "address": 1075687300,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "5aaedbcdac7329b743160b9b283b9dcef49a47795b484983f86f703de449503b"
+      }
+    },
+    "sysg.send4": {
+      "address": 1074197296,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "e0f9b417b0e69331b413061303f35924a68e2237e91408c3000702823f8455b0"
+      }
+    },
+    "ui.main_scrawl": {
+      "address": 1075961808,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "42b619e454b47102371279e1750b18c9f8092de375619f3b9fe54fee7d6f9bee"
+      }
+    },
+    "ui.option_scrawl": {
+      "address": 1075970084,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "176138dd468c980f2896df2465f01245a9ec225883cffb8c3a7f7ecbbfee3b05"
+      }
+    },
+    "assert.entry": {
+      "address": 1073770824,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "3b89c7dc6f54243a331f1cf9af770515dfe541c2f6d8d7389227fd1e5d25b357"
+      }
+    },
+    "sdk.touch.dispatch_site": {
+      "address": 1079727372,
+      "kind": "code",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "95be3fe4212d267f20eccd29d5735f809e758a75bbe9e9ff7571caf2c906484f"
+      }
+    },
+    "runtime.idle": {
+      "address": 1073748512,
+      "kind": "code",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "1f9bd9470210cb88dfc76cd291f3fc528883b8b66fc1617986e6da7ff91757b7"
+      }
+    },
+    "raster.shape.site": {
+      "address": 1075820900,
+      "kind": "code",
+      "optional": true,
+      "group": "accel.raster",
+      "guard": {
+        "length": 16,
+        "sha256": "c72de33e54cfc11a643c69d9728aaaf5f5bd900938bba36e0829f3acaa8c3d28"
+      }
+    },
+    "raster.buffer.site": {
+      "address": 1075821500,
+      "kind": "code",
+      "optional": true,
+      "group": "accel.raster",
+      "guard": {
+        "length": 16,
+        "sha256": "13f5a29a214750e05a72080365cb8830d065f929b5637f81292ba2b72ba55847"
+      }
+    },
+    "raster.copy.site": {
+      "address": 1075816084,
+      "kind": "code",
+      "optional": true,
+      "group": "accel.raster",
+      "guard": {
+        "length": 16,
+        "sha256": "b7078a1c55bc660f56fe60a11d1d5f557467f25ba0069ef2ea59ee10566869fd"
+      }
+    },
+    "raster.palette": {
+      "address": 1075808136,
+      "kind": "function",
+      "optional": true,
+      "group": "accel.raster",
+      "guard": {
+        "length": 16,
+        "sha256": "71bd23e9417432acc06a134f6771e943b20d36a586e27a8ffbaa369bcfacd83a"
+      }
+    },
+    "raster.shape.done": {
+      "address": 1075820992,
+      "kind": "code",
+      "optional": true,
+      "group": "accel.raster",
+      "guard": {
+        "length": 16,
+        "sha256": "54b43417f1967662173a917b7c1c1ad9f591a1379744bf9a9a72eea619a3e356"
+      }
+    },
+    "raster.buffer.done": {
+      "address": 1075821592,
+      "kind": "code",
+      "optional": true,
+      "group": "accel.raster",
+      "guard": {
+        "length": 16,
+        "sha256": "eab0938705861fea1a2dce8c95af20c6617b24416189951afe230045454f6541"
+      }
+    },
+    "raster.copy.done": {
+      "address": 1075816216,
+      "kind": "code",
+      "optional": true,
+      "group": "accel.raster",
+      "guard": {
+        "length": 16,
+        "sha256": "654f271107a335954f51995d452cb7e3efe1bef0c458acfdf2b786e3aca5f759"
+      }
+    },
+    "tx.system_state": {
+      "address": 1087757400,
+      "kind": "data",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 4,
+        "sha256": "7235e6d78023811154c8bafc9ff9bfa694c085168ba0c53c50612f1c9b17b11b"
+      }
+    },
+    "tx.current_thread": {
+      "address": 1088651388,
+      "kind": "data",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 4,
+        "sha256": "cf5c1ddf8ee4f70873d6b17e189005e203b37a4182520cedd7ebd7ed0692adcf"
+      }
+    },
+    "ui.current_menu": {
+      "address": 1094409108,
+      "kind": "data",
+      "optional": false,
+      "group": "core"
+    },
+    "ui.state": {
+      "address": 1088837968,
+      "kind": "data",
+      "optional": false,
+      "group": "core"
+    },
+    "ui.category": {
+      "address": 1094372390,
+      "kind": "data",
+      "optional": false,
+      "group": "core"
+    },
+    "ui.scrawl_callback": {
+      "address": 1094455332,
+      "kind": "data",
+      "optional": false,
+      "group": "core"
+    },
+    "ui.main_scroll": {
+      "address": 1093415464,
+      "kind": "data",
+      "optional": false,
+      "group": "core"
+    },
+    "ui.sub_scroll": {
+      "address": 1093421660,
+      "kind": "data",
+      "optional": false,
+      "group": "core"
+    },
+    "ui.option_scroll": {
+      "address": 1093415308,
+      "kind": "data",
+      "optional": false,
+      "group": "core"
+    },
+    "ui.option_visible_count": {
+      "address": 1093421740,
+      "kind": "data",
+      "optional": false,
+      "group": "core"
+    },
+    "ui.language_table": {
+      "address": 1094417940,
+      "kind": "data",
+      "optional": false,
+      "group": "core"
+    },
+    "settings.pointer": {
+      "address": 1087788060,
+      "kind": "data",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 4,
+        "sha256": "2f621dac8103b1f86240251f1509877be553d156e7ed322e1c36fef1235ff3ea"
+      }
+    },
+    "power.context": {
+      "address": 1088924532,
+      "kind": "data",
+      "optional": false,
+      "group": "core"
+    },
+    "gfx.context": {
+      "address": 1087850992,
+      "kind": "data",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 4,
+        "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+      }
+    },
+    "raster.colors": {
+      "address": 1093448820,
+      "kind": "data",
+      "optional": false,
+      "group": "core"
+    },
+    "raster.border_color": {
+      "address": 1093448824,
+      "kind": "data",
+      "optional": false,
+      "group": "core"
+    },
+    "board.boot_adc_interval": {
+      "address": 1087835224,
+      "kind": "data",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 4,
+        "sha256": "9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0"
+      }
+    },
+    "sysg.context_literal": {
+      "address": 1074174524,
+      "kind": "literal",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 4,
+        "sha256": "92d5f174af58762fb61eecf35a5c53c3619f953f69b49e84a4d16ef44013cccb"
+      }
+    },
+    "tx.created_count_literal": {
+      "address": 1073871548,
+      "kind": "literal",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 4,
+        "sha256": "27849042a3db5fde86c863a2378b7c7b00af11cd3532abaaf0762150c9453ca9"
+      }
+    },
+    "tx.created_head_literal": {
+      "address": 1073871556,
+      "kind": "literal",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 4,
+        "sha256": "066944a77419b55694981af280691a09c9f830cb3f0e02f01c51e033e7ab88f7"
+      }
+    },
+    "boot.checksum_slot": {
+      "address": 1073744844,
+      "kind": "literal",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 4,
+        "sha256": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119"
+      }
+    },
+    "dma.dma_fill_async": {
+      "address": 1073916756,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "c8e4e73426366a6a34e750ec7961cba806be3e93fc7fe97cfd5869f16369b0d0"
+      }
+    },
+    "dma.dma_copy_sync": {
+      "address": 1074251712,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "6e7c963d8a6cd97d632dbe48dca800b86f5a47a22b80ddf2207775c78c2fd3f2"
+      }
+    },
+    "init.boot_mode_probe": {
+      "address": 1073792896,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "0353fa140277c88b27e5e9bda58343518a79ba6d34e69f755f8d5c2483d5bec8"
+      }
+    },
+    "init.board_power_init": {
+      "address": 1074017288,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "0c772782b2104c177d5c93f0547879f35f5429dd4aa67dce945714edb42953cb"
+      }
+    },
+    "init.nand_resource_init": {
+      "address": 1074517448,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "c18c5d66c5e43bccbc804d41dcb5faf7cd71fdd49e7adbb35d364466c26a21b7"
+      }
+    },
+    "init.rtc_reliable_init": {
+      "address": 1074009052,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "6bf24c3c2cc5a0c99e020bf594cc2f0e571095826828da7a96ab826a0d244b01"
+      }
+    },
+    "init.sensor_register_write": {
+      "address": 1074892160,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "3778d93ca84c3ba26ad889c601fc2a9c24c69401815391857ed9ca667e586893"
+      }
+    },
+    "init.external_control_chip_init": {
+      "address": 1077020984,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "51025dbc7c25894242d3653bc5ad9654851cbfefdc1aa4f3c752a40bc890f0f7"
+      }
+    },
+    "init.lens_init_ready_probe": {
+      "address": 1074021828,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "c7c7e1a1aec34c844fb68b53fc60447f235e3218bcd6f28c0921e1d4911b02c9"
+      }
+    },
+    "init.lcd_backlight_level": {
+      "address": 1075862992,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "f145166c6ca81afcda9306775d1574661d7de3307ccb5aedebdcd8b778ef9b76"
+      }
+    },
+    "init.shutter_home": {
+      "address": 1074022476,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "97ded1e06e32a0a7b9c990b3103bd5e840c86070adb3b3b643646cb3e4c1b9a9"
+      }
+    },
+    "init.iris_home": {
+      "address": 1074021788,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "41a6717ddbb33cc39c75cce9395fc7bc1acdc06833d5783d0a381100a83b1eef"
+      }
+    },
+    "init.focus_motor_enable": {
+      "address": 1074027276,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "8a082eba40b51802c910ebca320a039d0758440f4c144b4ec0824ccc20789d3c"
+      }
+    },
+    "init.focus_home_scan": {
+      "address": 1074026120,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "71ebf33d149b31e436f198170ca7f693b7a16cac2b2592440cc56217c550acf4"
+      }
+    },
+    "init.focus_home_reset": {
+      "address": 1074027356,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "4ca3da94187229177b72ff0d1e299de7715b0c2ed779dc9a7a9803dde70922ed"
+      }
+    },
+    "init.motor_register_write": {
+      "address": 1074301396,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "cdfc9573872e2a4e9e0660e52415e22f4028d5ac718587470e8bf3bfc1d0fc87"
+      }
+    },
+    "init.focus_ring_register_update": {
+      "address": 1075156100,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "9901d66e7fcbf377ddc581a115b97531933a00c8e46a6cdb7b4c66162231262f"
+      }
+    },
+    "init.video_led_register_update": {
+      "address": 1074891220,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "51137266c2573fb928d4c8ce785aaedf417d14445a33e9a2c3f6e3abbe8ed273"
+      }
+    },
+    "init.linux_wireless_start": {
+      "address": 1080121568,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "53be7db9e8dcbd6e0ee12df293636225e65b24154e46d8403979a6c0d374a9a9"
+      }
+    },
+    "sdk.touch.thread_entry": {
+      "address": 1079727336,
+      "kind": "function",
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "f72e166042860b27933a580a5b208c9fb6145a48bf75fe323be36cc3a7610bf1"
+      }
+    },
+    "sdk.touch.read": {
+      "address": 1079937676,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "cb650909d71b2bad4fd7c4da5ace4199f8e1c1e230ec41ffae0580a591df0db7"
+      }
+    },
+    "sdk.touch.device_read": {
+      "address": 1079726868,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "378aafb17e8eeeb0e27cc1e7b0d46d069592b8619ecc2eb73ad8b6ba93f33d45"
+      }
+    },
+    "sdk.touch.wait_site": {
+      "address": 1079727348,
+      "kind": "code",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "9a6f5a7c60ea909f9dc33b23cb266d4536e85ca5a4def872beb9aa1d4dd3c6e2"
+      }
+    },
+    "sdk.touch.interrupt": {
+      "address": 1079726424,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "aa20828902075e7e6e5b1aa243898a1184276ec0358a9cade7002db3b5f96909"
+      }
+    },
+    "sdk.touch.driver": {
+      "address": 1088501748,
+      "kind": "data",
+      "optional": false,
+      "group": "core"
+    },
+    "sdk.key.send": {
+      "address": 1074934128,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "78890ce4ae4f23fe2ecdfba002ddf3acadc2d211bd66d5bbf5a3d47d3d46740c"
+      }
+    },
+    "board.eye_sensor_read": {
+      "address": 1079063700,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "2775642f902dfbd7d2d2055337488ba038263e63f4d5a523cf9e6d50c9e0dd11"
+      }
+    },
+    "pixels.rgba.site": {
+      "address": 1076544816,
+      "kind": "code",
+      "optional": true,
+      "group": "accel.pixels",
+      "guard": {
+        "length": 76,
+        "sha256": "a966910973868134884add5217456d42662cf111a607db6099a404ba7f9c86a7"
+      }
+    },
+    "pixels.coverage.site": {
+      "address": 1077633092,
+      "kind": "code",
+      "optional": true,
+      "group": "accel.pixels",
+      "guard": {
+        "length": 48,
+        "sha256": "fb51403eb0701b81d4beb114767686c573b60d5d3662bc48b054bccf6de0346e"
+      }
+    },
+    "pixels.rgba_descriptor.site": {
+      "address": 1076545236,
+      "kind": "code",
+      "optional": true,
+      "group": "accel.pixels",
+      "guard": {
+        "length": 88,
+        "sha256": "9dec844825498e9014f014f8e1ac9d0ce18c0633de9ee8d5d2912cf45e6717eb"
+      }
+    },
+    "sdk.sensor.config_initialized": {
+      "address": 1074720548,
+      "kind": "code",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 8,
+        "sha256": "aab59d90c8fb86b8ec6e7c78746ef7161a1397599cedc2fefc2556a803de8ce9"
+      }
+    },
+    "sdk.sensor.config_set": {
+      "address": 1074722472,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "05614532c16ff3d8841ba397dbe86bde686e89dbfa9b366e9ce2f98c073e8601"
+      }
+    },
+    "cache.data_maintenance": {
+      "address": 1073752520,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "ee2f002a0ba813408eeeb3b46bde9e9c8bf208bc3cd7d13a73a9f189eaad27ee"
+      }
+    },
+    "imaging.build_blank_job": {
+      "address": 1075118804,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "bdb414aaaa05e700b11e3c9e82795279a6ac30ea96a5d403104bba70e9903802"
+      }
+    },
+    "storage.context_register": {
+      "address": 1073929568,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "0373b8385462ecb1bdca00f05f8d99860fc39345aaf75682c20a335f27f6bcb3"
+      }
+    },
+    "storage.mount_set": {
+      "address": 1073929660,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "ada8c0e8769de9ef574f7a11d5a33f4a67e8b772875fc95b30e3d837a51a0389"
+      }
+    },
+    "storage.read_set": {
+      "address": 1073929708,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "018c008e11c7028add3a3c0aec695ff13e2bc0b72f09692598b730132970ccac"
+      }
+    },
+    "storage.write_set": {
+      "address": 1073929756,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "9ebc0f8d0e25ac7a07e5cffb31e8e0fc063931ab6e522ad5a3b7eb59f8691326"
+      }
+    },
+    "storage.erase_set": {
+      "address": 1073929804,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "996d9976672360453c47174de6ff1c181cf5cd67f8a820845163ddd6f0804487"
+      }
+    },
+    "storage.sync_set": {
+      "address": 1073929852,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "2a7f6afa5671c752ff158cdb75e3cca918208162359a82f97116897505c3a26d"
+      }
+    },
+    "storage.format_set": {
+      "address": 1073929900,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "1488c1c200c2133bd6f3a314325bd2852b4a30778cf83325cce33dec27abea48"
+      }
+    },
+    "storage.present_set": {
+      "address": 1073930136,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "ae80c71b5cfacd44f95f6fcd27d06f595f6e3d2a0b1f98cf708f7fe3effcfed3"
+      }
+    },
+    "storage.media_mount": {
+      "address": 1074563352,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "ce165d2a891d285fff7b22ffa6ff7d213756e337fa9bcc532fbba37ca4e51166"
+      }
+    }
+  },
+  "stubs": [
+    {
+      "symbol": "dma.dma_fill_async",
+      "name": "dma_fill_async",
+      "behavior": "dma",
+      "return_value": 0,
+      "reason": "SDK DMA fill: synchronously fill guest DRAM; -1 is its documented no-pending-channel sentinel."
+    },
+    {
+      "symbol": "dma.dma_copy_sync",
+      "name": "dma_copy_sync",
+      "behavior": "dma",
+      "return_value": 0,
+      "reason": "Synchronous SDK DMA copy (Ghidra 0x4007c814): copy destination/source/length in guest DRAM and return the actual byte count; no DMA channel or completion IRQ."
+    },
+    {
+      "symbol": "init.boot_mode_probe",
+      "name": "boot_mode_probe",
+      "behavior": "return",
+      "return_value": 0,
+      "reason": "OTP-backed boot-mode detection (Ghidra 0x4000c7d4); report normal boot (0)."
+    },
+    {
+      "symbol": "init.board_power_init",
+      "name": "board_power_init",
+      "behavior": "return",
+      "return_value": 0,
+      "reason": "Board power register initialization (Ghidra 0x4004345c): SPI read/modify/write of registers 5 and 4; no physical power chip in HLE."
+    },
+    {
+      "symbol": "init.rtc_reliable_init",
+      "name": "rtc_reliable_init",
+      "behavior": "return",
+      "return_value": 0,
+      "reason": "RtcReliableSet (Ghidra 0x40041430): initialize/verify retained RTC marker then clear scratch registers; return success without a physical RTC."
+    },
+    {
+      "symbol": "init.sensor_register_write",
+      "name": "sensor_register_write",
+      "behavior": "sensor_write",
+      "return_value": 0,
+      "reason": "Sensor command-port register transfer (Ghidra 0x40118dd4); acknowledge writes while native sensor configuration and mode bookkeeping execute."
+    },
+    {
+      "symbol": "init.external_control_chip_init",
+      "name": "external_control_chip_init",
+      "behavior": "return",
+      "return_value": 0,
+      "reason": "External control-chip setup (Ghidra 0x4032098c): fixed SPI register writes 0x20..0x35; no host UI behavior."
+    },
+    {
+      "symbol": "init.lens_init_ready_probe",
+      "name": "lens_init_ready_probe",
+      "behavior": "return",
+      "return_value": 1,
+      "reason": "Lens startup readiness probe (Ghidra 0x40044618): waits for physical homing flag +0x21/+0x0a, then returns ready. HLE reports ready (1); VQIQ and UI set their own completion flags."
+    },
+    {
+      "symbol": "init.lcd_backlight_level",
+      "name": "lcd_backlight_level",
+      "behavior": "return",
+      "return_value": 0,
+      "reason": "LCD backlight current command (Ghidra 0x40205e24): physical board IC brightness write; retain the surrounding display/UI configuration."
+    },
+    {
+      "symbol": "init.shutter_home",
+      "name": "shutter_home",
+      "behavior": "return",
+      "return_value": 0,
+      "reason": "Physical shutter homing sequence (Ghidra 0x400448a0), waits on motor GPIO/IRQ; native IrisShutter worker still publishes completion."
+    },
+    {
+      "symbol": "init.iris_home",
+      "name": "iris_home",
+      "behavior": "return",
+      "return_value": 0,
+      "reason": "Physical iris homing sequence (Ghidra 0x400445f0); caller retains startup event and bookkeeping."
+    },
+    {
+      "symbol": "init.focus_motor_enable",
+      "name": "focus_motor_enable",
+      "behavior": "return",
+      "return_value": 0,
+      "reason": "Focus motor power/enable sequence (Ghidra 0x40045b60); no physical actuator."
+    },
+    {
+      "symbol": "init.focus_home_scan",
+      "name": "focus_home_scan",
+      "behavior": "return",
+      "return_value": 0,
+      "reason": "Focus homing pulse/photointerrupter scan (Ghidra 0x400456dc), returns zero error; native reset task sets lens completion."
+    },
+    {
+      "symbol": "init.focus_home_reset",
+      "name": "focus_home_reset",
+      "behavior": "return",
+      "return_value": 0,
+      "reason": "Focus physical reset scan (Ghidra 0x40045bb0), returns zero error; leaves calibration tables and task completion native."
+    },
+    {
+      "symbol": "init.motor_register_write",
+      "name": "motor_register_write",
+      "behavior": "return",
+      "return_value": 0,
+      "reason": "Motor IC register transfer (Ghidra 0x40088a28): GPIO bit-banged serial writes; acknowledge without per-bit physical delays."
+    },
+    {
+      "symbol": "init.focus_ring_register_update",
+      "name": "focus_ring_register_update",
+      "behavior": "return",
+      "return_value": 0,
+      "reason": "Focus-ring IC masked register update (Ghidra 0x401594d8), acknowledge physical I2C configuration."
+    },
+    {
+      "symbol": "init.video_led_register_update",
+      "name": "video_led_register_update",
+      "behavior": "return",
+      "return_value": 0,
+      "reason": "Video LED current-controller masked register update (Ghidra 0x40118a28): acknowledge I2C write; native flash/light settings remain active."
+    },
+    {
+      "symbol": "init.linux_wireless_start",
+      "name": "linux_wireless_start",
+      "behavior": "return",
+      "return_value": 1,
+      "reason": "HceLinuxOS_Start (Ghidra 0x40615934): second processor/AbilityWiFi is absent; report unavailable (1), without starting its IPC boot worker."
+    }
+  ],
+  "ui": {
+    "roles": {
+      "shooting.main": 8193,
+      "shooting.picture_size": 8195,
+      "setup.main": 12289,
+      "setup.basic": 12304,
+      "setup.language": 12312
+    },
+    "categories": [
+      "shooting",
+      "movie",
+      "image-quality",
+      "focus",
+      "audio",
+      "setup",
+      "connection"
+    ],
+    "first_setup_ids": [12290, 12301],
+    "view_mode": 8208,
+    "basic_language_index": 4,
+    "first_item": 0,
+    "verification": {
+      "setup_sidebar_index": 8,
+      "setup_rows": 7,
+      "language_scroll_delta": 4,
+      "shooting_submenu_index": 1,
+      "first_category_key": "1",
+      "setup_category_key": "6"
+    }
+  },
+  "resources": {
+    "A": {
+      "length": 125829120,
+      "sha256": "2d693dbf7bf96aed2f5455bf3af39381f59071691d879ab364518051f5fcb05f"
+    },
+    "B": {
+      "length": 10485760,
+      "sha256": "b8827f21b399642484767a357ba0dfb67403bc6b5eb4ed40aceb73ada65eba89"
+    }
+  },
+  "state_abi": 2,
+  "webSchema": 2
+}

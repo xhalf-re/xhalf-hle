@@ -1,0 +1,108 @@
+{
+  "profile": "xhalf-main-21aa469f",
+  "symbols": {
+    "vfs.open": {
+      "address": 1073807772,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "analysis_name": "fn_vfsOpen",
+      "guard": {
+        "length": 16,
+        "sha256": "1377598e5c3e631e577357287da4dcc8281aacddd2c1897874529dfc1f4e0713"
+      }
+    },
+    "vfs.close": {
+      "address": 1073808020,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "analysis_name": "fn_vfsClose",
+      "guard": {
+        "length": 16,
+        "sha256": "d31af5b0dfd24405e1129f6dcde85df9a72362c9c570a8077e2dce329d4e205a"
+      }
+    },
+    "vfs.read": {
+      "address": 1073808084,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "analysis_name": "fn_vfsRead",
+      "guard": {
+        "length": 16,
+        "sha256": "6d66f3970730d93d24a585285d8f542b16d1b0627cef660f2bcc5e25e459b070"
+      }
+    },
+    "vfs.write": {
+      "address": 1073808176,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "analysis_name": "fn_vfsWrite",
+      "guard": {
+        "length": 16,
+        "sha256": "de1ded9fda892f9b761c5f999320de9333b6157e193ad0f39eaf0604fca41333"
+      }
+    },
+    "vfs.seek": {
+      "address": 1073808312,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "analysis_name": "fn_vfsSeek",
+      "guard": {
+        "length": 16,
+        "sha256": "3dc3de887e46d9552eb95abf2e5d2ea1a97cc500bf14d49a3aad24e26ce5b1cd"
+      }
+    },
+    "vfs.tell": {
+      "address": 1073808472,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "analysis_name": "fn_vfsTell",
+      "guard": {
+        "length": 16,
+        "sha256": "b57dfd5cfe60f3854afd06f73f72a6e4baca1ae97946825042f31da8a05d1a5b"
+      }
+    },
+    "vfs.size": {
+      "address": 1073812352,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "analysis_name": "fn_vfsSize",
+      "guard": {
+        "length": 16,
+        "sha256": "3dc9c208670bba83b5fae8513354c6df6072ff292b39d6622d1927ae854d1987"
+      }
+    },
+    "vfs.size64": {
+      "address": 1073812428,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "analysis_name": "fn_vfsSize64",
+      "guard": {
+        "length": 16,
+        "sha256": "61c23fff6844bb4d9b9d056cb48b86777a6d519cbe7054bb5a1dab206ef0b068"
+      }
+    },
+    "vfs.stat": {
+      "address": 1073814512,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "analysis_name": "fn_vfsStat",
+      "guard": {
+        "length": 16,
+        "sha256": "760a54d9c28b67cd70f6923011998c967c77b24874cec9c2a8f2faba46a30c73"
+      }
+    }
+  },
+  "stat": {
+    "size": 40,
+    "size_offset": 16
+  }
+}

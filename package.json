@@ -1,0 +1,37 @@
+{
+  "name": "xhalf-hle",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "wasm:build": "python3 scripts/build-wasm.py",
+    "arm:check": "python3 scripts/assemble-tests.py --check",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:private": "vitest run --config vitest.private.config.ts",
+    "test:e2e": "playwright test",
+    "test:performance": "npm run build && playwright test tests/browser/m6-performance.spec.ts",
+    "audit:public": "node scripts/audit-public.mjs",
+    "check": "npm run format:check && npm run typecheck && npm test && npm run build && npm run audit:public"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "26.6.5",
+    "prettier": "3.9.10",
+    "typescript": "7.0.2",
+    "vite": "8.3.4",
+    "vitest": "5.0.5"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  }
+}

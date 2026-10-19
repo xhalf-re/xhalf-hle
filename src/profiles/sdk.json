@@ -1,0 +1,336 @@
+{
+  "schema": 1,
+  "id": "spca6500-arm32-v1",
+  "adapter": "spca6500-arm32",
+  "state_abi": 1,
+  "layouts": {
+    "menu": {
+      "size": 52,
+      "fields": {
+        "id": [0, "I"],
+        "count": [4, "I"],
+        "index": [8, "I"],
+        "children": [16, "I"],
+        "parent": [20, "I"],
+        "creator": [28, "I"],
+        "redraw": [32, "I"],
+        "handler": [36, "I"],
+        "items": [40, "I"]
+      }
+    },
+    "queue": {
+      "size": 48,
+      "fields": {
+        "id": [0, "I"],
+        "message_words": [8, "I"],
+        "capacity": [12, "I"],
+        "enqueued": [16, "I"],
+        "available": [20, "I"],
+        "suspended": [44, "I"]
+      }
+    },
+    "thread": {
+      "size": 436,
+      "fields": {
+        "id": [0, "I"],
+        "run_count": [4, "I"],
+        "stack_pointer": [8, "I"],
+        "stack_start": [12, "I"],
+        "stack_end": [16, "I"],
+        "stack_size": [20, "I"],
+        "name": [40, "I"],
+        "priority": [44, "I"],
+        "state": [48, "I"],
+        "entry": [68, "I"],
+        "argument": [72, "I"],
+        "suspend_cleanup": [104, "I"],
+        "suspend_object": [108, "I"],
+        "next": [136, "I"],
+        "previous": [140, "I"]
+      }
+    },
+    "sysg": {
+      "size": 0,
+      "fields": {
+        "queue_base": [76, "I"]
+      },
+      "channel_stride": 4,
+      "ui_channel": 1
+    },
+    "ui_state": {
+      "size": 0,
+      "fields": {
+        "mode": [4104, "H"]
+      }
+    },
+    "gfx_context": {
+      "size": 0,
+      "fields": {
+        "active_buffer": [2004, "I"]
+      },
+      "buffer_base": 1816,
+      "buffer_stride": 80
+    },
+    "gfx_buffer": {
+      "size": 80,
+      "fields": {
+        "address": [0, "I"],
+        "alpha": [4, "I"],
+        "width": [8, "I"],
+        "height": [12, "I"],
+        "format": [64, "I"]
+      }
+    },
+    "fill": {
+      "size": 124,
+      "fields": {
+        "address": [64, "I"],
+        "width": [72, "I"],
+        "height": [76, "I"],
+        "format": [80, "I"],
+        "x": [84, "I"],
+        "y": [88, "I"],
+        "rect_width": [92, "I"],
+        "rect_height": [96, "I"],
+        "color": [100, "I"],
+        "flags": [120, "I"]
+      }
+    },
+    "hwc": {
+      "size": 452,
+      "fields": {
+        "address": [432, "I"],
+        "width": [436, "I"],
+        "height": [440, "I"],
+        "format": [444, "I"],
+        "flags": [448, "I"]
+      },
+      "layer_count": 6,
+      "layer_stride": 72
+    },
+    "hwc_layer": {
+      "size": 72,
+      "fields": {
+        "address": [0, "I"],
+        "alpha": [4, "I"],
+        "plane": [8, "I"],
+        "width": [12, "I"],
+        "height": [16, "I"],
+        "format": [20, "I"],
+        "crop_x": [24, "I"],
+        "crop_y": [28, "I"],
+        "crop_width": [32, "I"],
+        "crop_height": [36, "I"],
+        "x": [40, "I"],
+        "y": [44, "I"],
+        "out_width": [48, "I"],
+        "out_height": [52, "I"],
+        "transform": [56, "I"],
+        "color": [60, "I"],
+        "opacity": [64, "I"],
+        "flags": [68, "I"]
+      }
+    },
+    "power": {
+      "size": 64,
+      "fields": {
+        "timeout": [44, "H"],
+        "idle_ticks": [56, "I"]
+      }
+    },
+    "settings": {
+      "size": 0,
+      "fields": {
+        "auto_power_off": [17, "B"],
+        "language": [19, "B"]
+      }
+    },
+    "item": {
+      "size": 8,
+      "fields": {
+        "flags": [0, "B"],
+        "data": [4, "I"]
+      }
+    },
+    "touch_driver": {
+      "size": 6,
+      "fields": {
+        "initialized": [0, "B"],
+        "polling": [1, "B"],
+        "enabled": [2, "B"]
+      }
+    },
+    "disk_context": {
+      "size": 128,
+      "fields": {
+        "vendor": [0, "B"],
+        "device": [1, "B"],
+        "present": [2, "B"],
+        "name": [8, "I"],
+        "sector_count": [12, "I"],
+        "volume": [96, "I"]
+      }
+    }
+  },
+  "threadx": {
+    "thread_id": 1414025796,
+    "queue_id": 1364542805,
+    "states": [
+      "ready",
+      "completed",
+      "terminated",
+      "suspended",
+      "sleep",
+      "queue",
+      "semaphore",
+      "event_flags",
+      "block_memory",
+      "byte_memory",
+      "io",
+      "file",
+      "tcp_ip",
+      "mutex",
+      "priority_change"
+    ],
+    "ui_thread_names": ["host", "ViewDrawOsd"]
+  },
+  "input": {
+    "key_map": {
+      "up": [4026531843, 0, 0, 0],
+      "down": [4026531844, 0, 0, 0],
+      "left": [4026531845, 0, 0, 0],
+      "right": [4026531846, 0, 0, 0],
+      "m": [4093640786, 0, 0, 0],
+      "escape": [4026531845, 0, 0, 0],
+      "return": [4026531847, 0, 0, 0],
+      "tab": [4043309112, 0, 0, 0],
+      "1": [4026532081, 0, 0, 0],
+      "2": [4026532081, 1, 0, 0],
+      "3": [4026532081, 2, 0, 0],
+      "4": [4026532081, 3, 0, 0],
+      "5": [4026532081, 4, 0, 0],
+      "6": [4026532081, 5, 0, 0],
+      "7": [4026532081, 6, 0, 0],
+      "ui-back": [4043309109, 0, 0, 0],
+      "ui-confirm": [4043309110, 0, 0, 0]
+    },
+    "activity_message": [4026531952, 0, 0, 0],
+    "release_delta": 32,
+    "menu_id_range": [4096, 65536],
+    "language_stride": 2,
+    "language_id_offset": 0,
+    "pointer_space": "display",
+    "pointer_size": [640, 480],
+    "sample_interval_ns": 10000000,
+    "queue_limit": 256,
+    "activity_interval_ns": 2000000000
+  },
+  "images": {
+    "fill_packed_formats": {
+      "0x100": 2,
+      "0x101": 4
+    },
+    "fill_yuv_formats": [0, 1],
+    "hwc_formats": {
+      "7": 2,
+      "14": 4
+    },
+    "display_formats": {
+      "0x101": "abgr8888",
+      "0x180": "rgb565"
+    },
+    "crop_flag": 268435456,
+    "output_rect_flag": 536870912,
+    "rotate_flag": 4096,
+    "mirror_x": 1024,
+    "mirror_y": 2048,
+    "fill_rect_flag": 1
+  },
+  "raster": {
+    "sites": ["raster.shape.site", "raster.buffer.site"],
+    "copy": "raster.copy.site",
+    "palette": "raster.palette",
+    "shape_done": "raster.shape.done",
+    "buffer_done": "raster.buffer.done",
+    "copy_done": "raster.copy.done",
+    "shape_stride_stack": 12,
+    "copy_stride_stack": 12,
+    "source_stride": 4,
+    "shape_columns": "r4",
+    "shape_rows": "r5",
+    "shape_margin_x": "r6",
+    "shape_target": "r1",
+    "shape_style": "fp",
+    "shape_margin_y": "r7",
+    "buffer_descriptor": "r0",
+    "buffer_target": "r3",
+    "buffer_style": "r1",
+    "buffer_margin_y": "r8",
+    "copy_source": "r0",
+    "copy_target": "r5",
+    "copy_columns": "r3",
+    "copy_rows": "r6",
+    "copy_descriptor": "r4"
+  },
+  "board_services": {
+    "thermal_adc": 4000,
+    "preview_width": 640,
+    "preview_height": 480,
+    "eye_sensor_proximity": 0
+  },
+  "power": {
+    "idle_timeout_message": 4026531953,
+    "force_off_message": 4060086400,
+    "auto_off_disabled": 5
+  },
+  "pixel_loops": {
+    "coverage_site": "pixels.coverage.site",
+    "coverage_position": "r3",
+    "coverage_base": "r0",
+    "coverage_length": "r8",
+    "coverage_next": "r2",
+    "coverage_maximum": "r6",
+    "coverage_increment_stack": 32,
+    "coverage_clamp_stack": 28,
+    "rgba": [
+      {
+        "site": "pixels.rgba.site",
+        "columns": "r5",
+        "column": "r3",
+        "source_alpha": "r12",
+        "target": "r4",
+        "next_target": "r1",
+        "opacity_stack": 4
+      },
+      {
+        "site": "pixels.rgba_descriptor.site",
+        "columns": "r4",
+        "column": "r2",
+        "source_alpha": "r0",
+        "target": "r12",
+        "next_target": "r6",
+        "opacity_stack": 12
+      }
+    ],
+    "masked_transpose": {
+      "site": "pixels.masked_transpose.site",
+      "source_stride": 928,
+      "mask_offset": -3984,
+      "colors_offset": 1616
+    }
+  },
+  "sensor_registration": {
+    "identity_command": 0,
+    "interface_command": 1
+  },
+  "image_jobs": {
+    "queue_argument": 60,
+    "capacity_offset": 0,
+    "length_offset": 4,
+    "commands_offset": 128
+  },
+  "storage": {
+    "context_bpb_offset": 128,
+    "context_stride": 1024
+  }
+}

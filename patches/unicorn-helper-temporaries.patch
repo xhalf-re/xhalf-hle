@@ -1,0 +1,32 @@
+--- a/qemu/tcg/tcg.c
++++ b/qemu/tcg/tcg.c
+@@ -1441,6 +1441,7 @@
+     unsigned sizemask, flags;
+     TCGHelperInfo *info;
+     TCGOp *op;
++    TCGv_i64 widened_args[MAX_OPC_PARAM_IARGS] = { 0 };
+
+     info = g_hash_table_lookup(tcg_ctx->helper_table, (gpointer)func);
+     flags = info->flags;
+@@ -1498,6 +1499,7 @@
+         int arg_is_64bit = sizemask & (1 << (i+1)*2);
+         if (!arg_is_64bit) {
+             TCGv_i64 ext_temp = tcg_temp_new_i64(tcg_ctx);
++            widened_args[i] = ext_temp;
+             TCGv_i64 ext_orig = temp_tcgv_i64(tcg_ctx, args[i]);
+             tcg_gen_ext32u_i64(tcg_ctx, ext_temp, ext_orig);
+             args[i] = tcgv_i64_temp(tcg_ctx, ext_temp);
+@@ -1584,6 +1586,13 @@
+     /* Make sure the fields didn't overflow.  */
+     tcg_debug_assert(TCGOP_CALLI(op) == real_args);
+     tcg_debug_assert(pi <= ARRAY_SIZE(op->args));
++
++    /* Paired adapter arguments are live only through this emitted call. */
++    for (i = 0; i < nargs; i++) {
++        if (widened_args[i]) {
++            tcg_temp_free_i64(tcg_ctx, widened_args[i]);
++        }
++    }
+
+ #if defined(__sparc__) && !defined(__arch64__)
+     /* Free all of the parts we allocated above.  */

@@ -1,0 +1,15 @@
+{
+  "profile": "xhalf-main-21aa469f",
+  "symbols": {
+    "display.frame_done": {
+      "address": 1076450488,
+      "kind": "function",
+      "optional": false,
+      "group": "core",
+      "guard": {
+        "length": 16,
+        "sha256": "b7fa757704e303084e9c6ff16690a0457e3fd1f323a977e8e57070467d729659"
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+package-lock.json
+.private
+.cache
+vendor
+public/runtime
+dist
+coverage
+test-results
+playwright-report

@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "emscripten": "4.0.23",
+  "sources": [
+    {
+      "name": "unicorn-js",
+      "repository": "AlexAltea/unicorn.js",
+      "revision": "1220477c7fb0f8fe4b500f4bd211de52f6dfe638",
+      "sha256": "7936e0faba05710a62c5ce8f94d5218e0bea9c419b32631e57db689be552eee1",
+      "destination": "vendor/unicorn-js"
+    },
+    {
+      "name": "unicorn",
+      "repository": "unicorn-engine/unicorn",
+      "revision": "8028ec436f2d9376525352dd38ed9ed6b9f6be10",
+      "sha256": "0500c1f36307dd098d13a43cb480ee852c6c76d366f89a8d7a2527b65fc3b394",
+      "destination": "vendor/unicorn-js/unicorn"
+    },
+    {
+      "name": "emsdk",
+      "repository": "emscripten-core/emsdk",
+      "revision": "4.0.23",
+      "sha256": "8ba2a38daa11ac962373b9a352b82ecbe6633a9ec5c9c287b1880bf11b2ec16d",
+      "destination": "vendor/emsdk"
+    }
+  ]
+}

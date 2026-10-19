@@ -1,0 +1,133 @@
+{
+  "schema": 1,
+  "id": "spca6500",
+  "architecture": "arm32",
+  "counter_hz": 27000000,
+  "ns_per_instruction": 2,
+  "memory": {
+    "dram": [1073741824, 134217728],
+    "sram": [1056964608, 131072],
+    "scratch": [1058013184, 1048576],
+    "mmio": [268435456, 16777216],
+    "physical_alias": 1073741824
+  },
+  "gic": {
+    "distributor": 272633856,
+    "cpu_interface": 272637952,
+    "timer_irqs": [29, 27, 26, 30, 28]
+  },
+  "uart": {
+    "status": 268437777,
+    "tx": 268437784,
+    "rx": 268437788,
+    "irq": 35
+  },
+  "read_stubs": {
+    "0x10015872": 16,
+    "0x10000980": 3,
+    "0x100003a2": 1,
+    "0x100003a3": 1,
+    "0x10000324": 216
+  },
+  "hle_read_stubs": {
+    "0x10004054": 1,
+    "0x1000a10e": 3,
+    "0x1000903c": 32,
+    "0x100003a3": 1,
+    "0x1000904c": 32,
+    "0x10001304": 1
+  },
+  "scratch": {
+    "ttbr0": 1058013184,
+    "inject_return": 1058078464,
+    "checksum": 1058144256,
+    "input_message": 1058209792,
+    "call_thunk": 1058213888,
+    "call_packet": 1058214144,
+    "sensor_registration": 1058217984,
+    "storage_driver": 1058340864
+  },
+  "display": {
+    "width": 640,
+    "height": 480,
+    "rotation_quarters": -1
+  },
+  "static_ttbr0": 1056980992,
+  "section_flags": 87046,
+  "bootrom": {
+    "descriptor": 1057017856,
+    "xip_field": 12,
+    "size_field": 16,
+    "drampar_size": 1652,
+    "drampar_offset_field": 40,
+    "drampar_default": 1056965120
+  },
+  "cpu_model": 17,
+  "sparse_dram": [[1207959552, 939524096]],
+  "peripherals": {
+    "timers": {
+      "base": 268438016,
+      "channels": 16,
+      "stride": 16,
+      "clock_hz": 27000000,
+      "status": 268437504,
+      "irq_enable": 268437520,
+      "irq_disable": 268437528,
+      "first_irq": 48
+    },
+    "command_queue": {
+      "base": 268505088,
+      "channels": 9,
+      "irq": 197,
+      "completion_ns": 1000
+    },
+    "panel": {
+      "base": 268476416,
+      "irq": 188,
+      "transfer_ns": 1000,
+      "frame_interval_ns": 33333333
+    },
+    "serial": {
+      "base": 268472576,
+      "ports": 2,
+      "stride": 256,
+      "transfer_ns": 1000
+    },
+    "frontend": {
+      "base": 268443648,
+      "port_base": 268474368,
+      "port_stride": 256,
+      "interface_types": [1, 0, 0, 0],
+      "irq": 128,
+      "frame_interval_ns": 33333333,
+      "transition_ns": 1000,
+      "sync_width_ns": 1000000,
+      "readout_ns": 30000000
+    },
+    "gpio": {
+      "base": 268472320,
+      "irq": 186,
+      "counter_hz": 27000000
+    },
+    "clocks": {
+      "clear": 268435524,
+      "set": 268435556,
+      "banks": 3
+    },
+    "capture": {
+      "base": 268490752,
+      "ports": 2,
+      "stride": 128,
+      "reset_ns": 1000
+    },
+    "storage": {
+      "base": 284164096,
+      "max_transfer_sectors": 32768,
+      "volume_ids": [0, 7]
+    }
+  },
+  "imaging": {
+    "source": "blank"
+  },
+  "mpidr": 0
+}

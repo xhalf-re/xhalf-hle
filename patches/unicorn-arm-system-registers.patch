@@ -1,0 +1,365 @@
+--- a/qemu/accel/tcg/tcg-runtime.c
++++ b/qemu/accel/tcg/tcg-runtime.c
+@@ -168,6 +168,32 @@ void HELPER(exit_atomic)(CPUArchState *env)
+ void HELPER(check_exit_request)(void *p, uint32_t in_delay_slot) {
+     uc_engine *uc = p;
+
++#if defined(TARGET_ARM) && !defined(TARGET_AARCH64)
++    /* Unicorn chains TBs without returning to cpu_handle_interrupt. Sample
++     * the opt-in board line at each TB entry, including cached direct jumps.
++     * Restore the incoming TB's PC before QEMU saves LR/SPSR and selects the
++     * vector. A masked line remains asserted for a later CPSIE/exception return.
++     */
++    bool tb_entry = in_delay_slot & 2;
++    in_delay_slot &= 1;
++    ARMCPU *board_cpu = (ARMCPU *)uc->cpu;
++    if (tb_entry && board_cpu->xhle_tb_clock &&
++        !cpu_loop_exit_requested(uc->cpu)) {
++        board_cpu->xhle_tb_clock(board_cpu->xhle_tb_clock_opaque);
++    }
++    if (tb_entry && ((ARMCPU *)uc->cpu)->xhle_irq_enabled &&
++        (uc->cpu->interrupt_request & CPU_INTERRUPT_HARD) &&
++        !cpu_loop_exit_requested(uc->cpu)) {
++        CPUClass *cc = CPU_GET_CLASS(uc->cpu);
++        cpu_restore_state(uc->cpu, GETPC(), true);
++        if (cc->cpu_exec_interrupt(uc->cpu, uc->cpu->interrupt_request)) {
++            uc->cpu->exception_index = -1;
++            cpu_loop_exit(uc->cpu);
++        }
++    }
++#endif
++
++
+     if (cpu_loop_exit_requested(uc->cpu) && !in_delay_slot) {
+         // There are stil something we have to before exiting to be compatible with previous behaviors
+
+--- a/qemu/target/arm/helper.c
++++ b/qemu/target/arm/helper.c
+@@ -2273,57 +2273,55 @@ static uint64_t gt_get_countervalue(CPUARMState *env)
+ {
+     ARMCPU *cpu = env_archcpu(env);
+
++    if (cpu->xhle_clock_enabled) {
++        return cpu->xhle_counter;
++    }
+     return qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) / gt_cntfrq_period_ns(cpu);
+ }
+
+ static void gt_recalc_timer(ARMCPU *cpu, int timeridx)
+ {
+-#if 0
+-    ARMGenericTimer *gt = &cpu->env.cp15.c14_timer[timeridx];
+-
+-    if (gt->ctl & 1) {
+-        /* Timer enabled: calculate and set current ISTATUS, irq, and
+-         * reset timer to when ISTATUS next has to change
+-         */
+-        uint64_t offset = timeridx == GTIMER_VIRT ?
+-                                      cpu->env.cp15.cntvoff_el2 : 0;
+-        uint64_t count = gt_get_countervalue(&cpu->env);
+-        /* Note that this must be unsigned 64 bit arithmetic: */
+-        int istatus = count - offset >= gt->cval;
+-        uint64_t nexttick;
+-        int irqstate;
+-
+-        gt->ctl = deposit32(gt->ctl, 2, 1, istatus);
+-
+-        irqstate = (istatus && !(gt->ctl & 2));
+-        qemu_set_irq(cpu->gt_timer_outputs[timeridx], irqstate);
+-
+-        if (istatus) {
+-            /* Next transition is when count rolls back over to zero */
+-            nexttick = UINT64_MAX;
+-        } else {
+-            /* Next transition is when we hit cval */
+-            nexttick = gt->cval + offset;
+-        }
+-        /* Note that the desired next expiry time might be beyond the
+-         * signed-64-bit range of a QEMUTimer -- in this case we just
+-         * set the timer for as far in the future as possible. When the
+-         * timer expires we will reset the timer for any remaining period.
+-         */
+-        if (nexttick > INT64_MAX / gt_cntfrq_period_ns(cpu)) {
+-            timer_mod_ns(cpu->gt_timer[timeridx], INT64_MAX);
+-        } else {
+-            timer_mod(cpu->gt_timer[timeridx], nexttick);
+-        }
+-        trace_arm_gt_recalc(timeridx, irqstate, nexttick);
+-    } else {
+-        /* Timer disabled: ISTATUS and timer output always clear */
+-        gt->ctl &= ~4;
+-        qemu_set_irq(cpu->gt_timer_outputs[timeridx], 0);
+-        timer_del(cpu->gt_timer[timeridx]);
+-        trace_arm_gt_recalc_disabled(timeridx);
++    if (cpu->xhle_clock_enabled) {
++        cpu->xhle_timer_cache_dirty = true;
++        ARMGenericTimer *gt = &cpu->env.cp15.c14_timer[timeridx];
++        uint64_t offset = (timeridx == GTIMER_VIRT || timeridx == GTIMER_HYPVIRT)
++                        ? cpu->env.cp15.cntvoff_el2 : 0;
++        bool expired = (gt->ctl & 1) &&
++                       cpu->xhle_counter - offset >= gt->cval;
++        gt->ctl = (gt->ctl & 3) | (expired ? 4 : 0);
+     }
+-#endif
++}
++
++/* Return level outputs; the board connects these to its interrupt controller. */
++uint32_t arm_xhle_timer_levels(ARMCPU *cpu)
++{
++    uint64_t counter = cpu->xhle_counter;
++    if (!cpu->xhle_timer_cache_dirty && counter >= cpu->xhle_timer_cached_at &&
++        counter < cpu->xhle_timer_next) {
++        return cpu->xhle_timer_cached_levels;
++    }
++    uint32_t levels = 0;
++    uint64_t next = UINT64_MAX;
++    for (int i = 0; i < NUM_GTIMERS; i++) {
++        gt_recalc_timer(cpu, i);
++        ARMGenericTimer *gt = &cpu->env.cp15.c14_timer[i];
++        if ((gt->ctl & 7) == 5) {
++            levels |= 1u << i;
++        }
++        if (gt->ctl & 1) {
++            uint64_t offset = (i == GTIMER_VIRT || i == GTIMER_HYPVIRT)
++                            ? cpu->env.cp15.cntvoff_el2 : 0;
++            uint64_t expiry = gt->cval + offset;
++            /* Offset subtraction can wrap before the virtual counter starts. */
++            if (offset > counter && offset < next) next = offset;
++            if (expiry > counter && expiry < next) next = expiry;
++        }
++    }
++    cpu->xhle_timer_cached_levels = levels;
++    cpu->xhle_timer_cached_at = counter;
++    cpu->xhle_timer_next = next;
++    cpu->xhle_timer_cache_dirty = false;
++    return levels;
+ }
+
+ static void gt_timer_reset(CPUARMState *env, const ARMCPRegInfo *ri,
+@@ -2369,14 +2367,10 @@ static uint64_t gt_virt_cnt_read(CPUARMState *env, const ARMCPRegInfo *ri)
+ }
+
+ static void gt_cval_write(CPUARMState *env, const ARMCPRegInfo *ri,
+-                          int timeridx,
+-                          uint64_t value)
++                          int timeridx, uint64_t value)
+ {
+-#if 0
+-    trace_arm_gt_cval_write(timeridx, value);
+     env->cp15.c14_timer[timeridx].cval = value;
+     gt_recalc_timer(env_archcpu(env), timeridx);
+-#endif
+ }
+
+ static uint64_t gt_tval_read(CPUARMState *env, const ARMCPRegInfo *ri,
+@@ -2414,26 +2408,10 @@ static void gt_tval_write(CPUARMState *env, const ARMCPRegInfo *ri,
+ }
+
+ static void gt_ctl_write(CPUARMState *env, const ARMCPRegInfo *ri,
+-                         int timeridx,
+-                         uint64_t value)
++                         int timeridx, uint64_t value)
+ {
+-#if 0
+-    ARMCPU *cpu = env_archcpu(env);
+-    uint32_t oldval = env->cp15.c14_timer[timeridx].ctl;
+-
+-    env->cp15.c14_timer[timeridx].ctl = deposit64(oldval, 0, 2, value);
+-    if ((oldval ^ value) & 1) {
+-        /* Enable toggled */
+-        gt_recalc_timer(cpu, timeridx);
+-    } else if ((oldval ^ value) & 2) {
+-        /* IMASK toggled: don't need to recalculate,
+-         * just set the interrupt line based on ISTATUS
+-         */
+-        int irqstate = (oldval & 4) && !(value & 2);
+-
+-        qemu_set_irq(cpu->gt_timer_outputs[timeridx], irqstate);
+-    }
+-#endif
++    env->cp15.c14_timer[timeridx].ctl = value & 3;
++    gt_recalc_timer(env_archcpu(env), timeridx);
+ }
+
+ static void gt_phys_timer_reset(CPUARMState *env, const ARMCPRegInfo *ri)
+@@ -2520,6 +2498,7 @@ static uint64_t gt_phys_redir_ctl_read(CPUARMState *env,
+                                        const ARMCPRegInfo *ri)
+ {
+     int timeridx = gt_phys_redir_timeridx(env);
++    gt_recalc_timer(env_archcpu(env), timeridx);
+     return env->cp15.c14_timer[timeridx].ctl;
+ }
+
+@@ -2599,6 +2578,7 @@ static uint64_t gt_virt_redir_ctl_read(CPUARMState *env,
+                                        const ARMCPRegInfo *ri)
+ {
+     int timeridx = gt_virt_redir_timeridx(env);
++    gt_recalc_timer(env_archcpu(env), timeridx);
+     return env->cp15.c14_timer[timeridx].ctl;
+ }
+
+@@ -3842,6 +3822,9 @@ static uint64_t mpidr_read(CPUARMState *env, const ARMCPRegInfo *ri)
+     unsigned int cur_el = arm_current_el(env);
+     bool secure = arm_is_secure(env);
+
++    if (env_archcpu(env)->xhle_clock_enabled) {
++        return env_archcpu(env)->xhle_mpidr;
++    }
+     if (arm_feature(env, ARM_FEATURE_EL2) && !secure && cur_el == 1) {
+         return env->cp15.vmpidr_el2;
+     }
+--- a/qemu/target/arm/unicorn_arm.c
++++ b/qemu/target/arm/unicorn_arm.c
+@@ -747,8 +747,15 @@ static uc_err uc_arm_context_restore(struct uc_struct *uc, uc_context *context)
+         p += sizeof(uint32_t);                                                 \
+     }
+
++    ARMGenericTimer timers[NUM_GTIMERS];
++    if (cpu->xhle_clock_enabled) {
++        memcpy(timers, env->cp15.c14_timer, sizeof(timers));
++    }
+     p = context->data;
+     memcpy(uc->cpu->env_ptr, p, uc->cpu_context_size);
++    if (cpu->xhle_clock_enabled) {
++        memcpy(env->cp15.c14_timer, timers, sizeof(timers));
++    }
+     p += uc->cpu_context_size;
+
+     nr = cpu->pmsav7_dregion;
+@@ -789,3 +796,90 @@ void uc_init(struct uc_struct *uc)
+     uc->context_restore = uc_arm_context_restore;
+     uc_common_init(uc);
+ }
++
++/* Project-local board interface; no guest instruction addresses are involved. */
++DEFAULT_VISIBILITY
++uc_err xhle_arm_clock_configure(uc_engine *uc, uint32_t frequency, uint32_t mpidr)
++{
++    uint32_t cpsr;
++    uc_err err = uc_reg_read(uc, UC_ARM_REG_CPSR, &cpsr);
++    if (err || !frequency) {
++        return err ? err : UC_ERR_ARG;
++    }
++    ARMCPU *cpu = (ARMCPU *)uc->cpu;
++    cpu->xhle_clock_enabled = true;
++    cpu->xhle_timer_cache_dirty = true;
++    cpu->xhle_counter = 0;
++    cpu->xhle_mpidr = mpidr;
++    cpu->env.cp15.c14_cntfrq = frequency;
++    memset(cpu->env.cp15.c14_timer, 0, sizeof(cpu->env.cp15.c14_timer));
++    return UC_ERR_OK;
++}
++
++DEFAULT_VISIBILITY
++uint32_t xhle_arm_clock_advance(uc_engine *uc, uint64_t counter)
++{
++    ARMCPU *cpu = (ARMCPU *)uc->cpu;
++    cpu->xhle_counter = counter;
++    return arm_xhle_timer_levels(cpu);
++}
++
++/* External board IRQ line. State belongs to the device, not CPU contexts. */
++DEFAULT_VISIBILITY
++uc_err xhle_arm_set_irq(uc_engine *uc, uint32_t asserted)
++{
++    uint32_t cpsr;
++    if (uc->arch != UC_ARCH_ARM) {
++        return UC_ERR_ARCH;
++    }
++    uc_err err = uc_reg_read(uc, UC_ARM_REG_CPSR, &cpsr);
++    if (err) {
++        return err;
++    }
++    ARMCPU *cpu = (ARMCPU *)uc->cpu;
++    cpu->xhle_irq_enabled = true;
++    if (asserted) {
++        cpu_interrupt(uc->cpu, CPU_INTERRUPT_HARD);
++    } else {
++        cpu_reset_interrupt(uc->cpu, CPU_INTERRUPT_HARD);
++    }
++    return UC_ERR_OK;
++}
++
++/* Earliest future timer transition, in counter ticks; UINT64_MAX means none. */
++DEFAULT_VISIBILITY
++uint64_t xhle_arm_clock_deadline(uc_engine *uc)
++{
++    ARMCPU *cpu = (ARMCPU *)uc->cpu;
++    uint64_t next = UINT64_MAX;
++    for (int i = 0; i < NUM_GTIMERS; i++) {
++        ARMGenericTimer *gt = &cpu->env.cp15.c14_timer[i];
++        uint64_t offset = (i == GTIMER_VIRT || i == GTIMER_HYPVIRT)
++                        ? cpu->env.cp15.cntvoff_el2 : 0;
++        uint64_t expiry = gt->cval + offset;
++        if ((gt->ctl & 3) == 1 && expiry > cpu->xhle_counter && expiry < next) {
++            next = expiry;
++        }
++    }
++    return next;
++}
++
++/* Internal board-budget query; avoid the public register API at every TB. */
++uint32_t xhle_arm_is_thumb(uc_engine *uc)
++{
++    return ((ARMCPU *)uc->cpu)->env.thumb;
++}
++
++DEFAULT_VISIBILITY
++uint32_t xhle_arm_is_waiting(uc_engine *uc)
++{
++    return uc->cpu && uc->cpu->halted && !cpu_has_work(uc->cpu);
++}
++
++/* Native board-clock observer runs before IRQ selection at each TB entry. */
++void xhle_arm_clock_observer(uc_engine *uc, void (*callback)(void *), void *opaque)
++{
++    ARMCPU *cpu = (ARMCPU *)uc->cpu;
++    cpu->xhle_tb_clock = callback;
++    cpu->xhle_tb_clock_opaque = opaque;
++}
+--- a/qemu/target/arm/cpu.h
++++ b/qemu/target/arm/cpu.h
+@@ -918,13 +918,28 @@ struct ARMCPU {
+     DECLARE_BITMAP(sve_vq_map, ARM_MAX_VQ);
+     DECLARE_BITMAP(sve_vq_init, ARM_MAX_VQ);
+
++    /* Optional externally clocked single-CPU board. Kept outside CPU contexts. */
++    bool xhle_clock_enabled;
++    bool xhle_timer_cache_dirty;
++    uint32_t xhle_timer_cached_levels;
++    uint64_t xhle_timer_cached_at;
++    uint64_t xhle_timer_next;
++    uint64_t xhle_counter;
++    uint32_t xhle_mpidr;
++
+     /* Generic timer counter frequency, in Hz */
+     uint64_t gt_cntfrq_hz;
+
++    /* External board IRQ input, independent of architectural CPU contexts. */
++    bool xhle_irq_enabled;
++    void (*xhle_tb_clock)(void *opaque);
++    void *xhle_tb_clock_opaque;
++
+     struct ARMCPUClass cc;
+ };
+
+ unsigned int gt_cntfrq_period_ns(ARMCPU *cpu);
++uint32_t arm_xhle_timer_levels(ARMCPU *cpu);
+
+ void arm_cpu_do_interrupt(CPUState *cpu);
+ void arm_v7m_cpu_do_interrupt(CPUState *cpu);
+--- a/qemu/include/exec/gen-icount.h
++++ b/qemu/include/exec/gen-icount.h
+@@ -33,7 +33,12 @@ static inline void gen_io_end(TCGContext *tcg_ctx)
+ static inline void gen_tb_start(TCGContext *tcg_ctx, TranslationBlock *tb)
+ {
+     TCGv_ptr puc = tcg_const_ptr(tcg_ctx, tcg_ctx->uc);
++#if defined(TARGET_ARM) && !defined(TARGET_AARCH64)
++    /* Bit 1 distinguishes TB entry from checks inside MMIO/code hooks. */
++    TCGv_i32 tmp = tcg_const_i32(tcg_ctx, 2);
++#else
+     TCGv_i32 tmp = tcg_const_i32(tcg_ctx, 0);
++#endif
+     // Unicorn:
+     //    We CANT'T use brcondi_i32 here or we will fail liveness analysis
+     //    because it marks the end of BB
