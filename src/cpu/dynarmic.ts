@@ -8,6 +8,7 @@ import type {
   HookCallback,
   HookKind,
 } from './backend';
+import type { Composition } from '../services/images';
 export interface DynarmicModule {
   xhleHeap(): Uint8Array;
   _malloc(size: number): number;
@@ -17,11 +18,17 @@ export interface DynarmicModule {
     signature: string,
   ): number;
   removeFunction(pointer: number): void;
-  dynarmicWasmStats?: Record<string, number>;
+  dynarmicWasmStats?: Record<string, number> & {
+    profile?: Record<string, number>;
+  };
   _dh_create(cb: number): number;
   _dh_destroy(h: number): void;
   _dh_read(h: number, a: number, n: number, p: number): number;
+  _dh_view(h: number, a: number, n: number, p: number): number;
   _dh_write(h: number, a: number, n: number, p: number): number;
+  _dh_copy(h: number, d: number, s: number, n: number): number;
+  _dh_fill(h: number, a: number, n: number, v: number): number;
+  _dh_compose4(h: number, s: number, layers: number, count: number): number;
   _dh_map(h: number, a: number, n: number, p: number): number;
   _dh_unmap(h: number, a: number, n: number): number;
   _dh_protect(h: number, a: number, n: number, p: number): number;
@@ -39,8 +46,11 @@ export interface DynarmicModule {
   _dh_undefined_pc(h: number): number;
   _dh_reg_read(h: number, i: number): number;
   _dh_reg_write(h: number, i: number, v: number): void;
+  _dh_hook_profile(h: number): number;
   _dh_hook(h: number, k: number, b: number, e: number): number;
   _dh_unhook(h: number, id: number): void;
+  _dh_division_hook(h: number, pc: number, remainder: number): number;
+  _dh_division_count(h: number): bigint;
   _dh_stop(h: number): void;
   _dh_invalidate(h: number, a: number, n: number): void;
   _dh_irq(h: number, on: number): void;
@@ -84,9 +94,11 @@ const registers: ArmRegister[] = [
 ];
 export class DynarmicBackend implements CpuBackend {
   private host: number;
+  private hookProfile: number;
   private transfer = 0;
   private transferSize = 0;
   private snapshots = new Set<number>();
+  private nativeHooks = new Set<number>();
   private eventPointer: number;
   private timePointer = 0;
   private pendingError: unknown;
@@ -95,6 +107,14 @@ export class DynarmicBackend implements CpuBackend {
     number,
     { kind: HookKind; cb: HookCallback; begin: number; end: number }
   >();
+  private bindingsByKind = Array.from(
+    { length: kinds.length },
+    () =>
+      new Map<
+        number,
+        { kind: HookKind; cb: HookCallback; begin: number; end: number }
+      >(),
+  );
   constructor(
     private dyn: DynarmicModule,
     model = 17,
@@ -117,7 +137,7 @@ export class DynarmicBackend implements CpuBackend {
         if (kind === 'write') event.value = v as bigint;
         if (kind === 'interrupt') event.interrupt = Number(v);
         let handled = false;
-        for (const h of this.bindings.values())
+        for (const h of this.bindingsByKind[Number(k)]?.values() ?? [])
           if (
             h.kind === kind &&
             (h.begin > h.end || (address >= h.begin && address <= h.end))
@@ -131,6 +151,7 @@ export class DynarmicBackend implements CpuBackend {
       }
     }, 'iiiij');
     this.host = dyn._dh_create(this.eventPointer);
+    this.hookProfile = dyn._dh_hook_profile(this.host);
   }
   private requireLive() {
     if (this.released) throw new Error('CPU has been destroyed');
@@ -152,14 +173,95 @@ export class DynarmicBackend implements CpuBackend {
     }
     return this.transfer;
   }
+  private nativeView(a: number, n: number) {
+    const p = this.buffer(4);
+    this.checked(this.dyn._dh_view(this.host, a, n, p));
+    const heap = this.dyn.xhleHeap();
+    return (
+      (heap[p]! |
+        (heap[p + 1]! << 8) |
+        (heap[p + 2]! << 16) |
+        (heap[p + 3]! << 24)) >>>
+      0
+    );
+  }
+  private readCopy(a: number, n: number) {
+    const result = new Uint8Array(n);
+    this.readInto(a, result);
+    return result;
+  }
   read(a: number, n: number) {
     this.requireLive();
     memoryRange(a, n);
     if (n > 0xffffffff) throw new RangeError('Transfer exceeds native size');
     if (!n) return new Uint8Array();
+    return this.readCopy(a, n);
+  }
+  readInto(a: number, target: Uint8Array) {
+    this.requireLive();
+    const n = target.byteLength;
+    memoryRange(a, n);
+    if (n > 0xffffffff) throw new RangeError('Transfer exceeds native size');
+    if (!n) return;
     const p = this.buffer(n);
     this.checked(this.dyn._dh_read(this.host, a, n, p));
-    return this.dyn.xhleHeap().slice(p, p + n);
+    target.set(this.dyn.xhleHeap().subarray(p, p + n));
+  }
+  readView(a: number, n: number) {
+    this.requireLive();
+    memoryRange(a, n);
+    if (n > 0xffffffff) throw new RangeError('Transfer exceeds native size');
+    if (!n) return new Uint8Array();
+    const at = this.nativeView(a, n);
+    return at ? this.dyn.xhleHeap().subarray(at, at + n) : this.readCopy(a, n);
+  }
+  copy(d: number, s: number, n: number) {
+    this.requireLive();
+    memoryRange(s, n);
+    memoryRange(d, n);
+    if (n > 0xffffffff) throw new RangeError('Transfer exceeds native size');
+    if (!n) return;
+    this.checked(this.dyn._dh_copy(this.host, d, s, n));
+  }
+  fill(a: number, n: number, value: number) {
+    this.requireLive();
+    memoryRange(a, n);
+    if (n > 0xffffffff) throw new RangeError('Transfer exceeds native size');
+    if (!Number.isInteger(value) || value < 0 || value > 255)
+      throw new RangeError('Fill value outside uint8');
+    if (!n) return;
+    this.checked(this.dyn._dh_fill(this.host, a, n, value));
+  }
+  compose4(composition: Composition) {
+    this.requireLive();
+    const layers = composition.layers,
+      size = 16 + layers.length * 52,
+      p = this.buffer(size),
+      heap = this.dyn.xhleHeap(),
+      words = new Uint32Array(heap.buffer, heap.byteOffset + p, size / 4),
+      s = composition.surface;
+    words.set([s.address, s.width, s.height, s.bpp], 0);
+    layers.forEach((layer, i) => {
+      const source = layer.surface;
+      words.set(
+        [
+          source.address,
+          source.width,
+          source.height,
+          source.bpp,
+          ...layer.crop,
+          ...layer.target,
+          Number(layer.rotate) |
+            (Number(layer.mirrorX) << 1) |
+            (Number(layer.mirrorY) << 2),
+        ],
+        4 + i * 13,
+      );
+    });
+    const result = this.dyn._dh_compose4(this.host, p, p + 16, layers.length);
+    if (result >>> 0 === 0xffffffff) return false;
+    this.checked(result);
+    return true;
   }
   write(a: number, bytes: Uint8Array) {
     this.requireLive();
@@ -303,12 +405,32 @@ export class DynarmicBackend implements CpuBackend {
     address32(begin);
     address32(end);
     const id = this.dyn._dh_hook(this.host, kinds.indexOf(kind), begin, end);
-    this.bindings.set(id, { kind, cb, begin, end });
+    const binding = { kind, cb, begin, end };
+    this.bindings.set(id, binding);
+    this.bindingsByKind[kinds.indexOf(kind)]!.set(id, binding);
+    return id;
+  }
+  hookUnsignedDivision(address: number, remainder: boolean): number {
+    this.requireLive();
+    address32(address);
+    const id = this.dyn._dh_division_hook(
+      this.host,
+      address,
+      Number(remainder),
+    );
+    this.nativeHooks.add(id);
     return id;
   }
   removeHook(id: number) {
     this.requireLive();
-    if (!this.bindings.delete(id)) throw new Error('Unknown CPU hook');
+    if (this.nativeHooks.delete(id)) {
+      this.dyn._dh_unhook(this.host, id);
+      return;
+    }
+    const binding = this.bindings.get(id);
+    if (!binding) throw new Error('Unknown CPU hook');
+    this.bindings.delete(id);
+    this.bindingsByKind[kinds.indexOf(binding.kind)]!.delete(id);
     this.dyn._dh_unhook(this.host, id);
   }
   private execute(b: number, n: number, end: number, exact: boolean) {
@@ -386,10 +508,35 @@ export class DynarmicBackend implements CpuBackend {
       jitTranslateMs: this.dyn.dynarmicWasmStats?.translateMs ?? 0,
       jitEmitMs: this.dyn.dynarmicWasmStats?.emitMs ?? 0,
       systemInstructions: Number(this.dyn._dh_slow_count(this.host)),
+      nativeDivisionCalls: Number(this.dyn._dh_division_count(this.host)),
       irqEntries: Number(this.dyn._dh_irq_count(this.host)),
       undefinedInstructions: Number(this.dyn._dh_undefined_count(this.host)),
       lastUndefinedPc: this.dyn._dh_undefined_pc(this.host) >>> 0,
+      dispatch: this.dyn.dynarmicWasmStats?.profile,
+      ...this.hookProfileStats(),
     };
+  }
+  private hookProfileStats(): Partial<
+    Record<`nativeHook${Capitalize<HookKind>}${'Checks' | 'Hits'}`, number>
+  > {
+    if (!this.hookProfile) return {};
+    const view = new DataView(
+      this.dyn.xhleHeap().buffer,
+      this.hookProfile,
+      14 * 8,
+    );
+    return Object.fromEntries(
+      kinds.flatMap((kind, i) => [
+        [
+          `nativeHook${kind[0]!.toUpperCase()}${kind.slice(1)}Checks`,
+          Number(view.getBigUint64(i * 16, true)),
+        ],
+        [
+          `nativeHook${kind[0]!.toUpperCase()}${kind.slice(1)}Hits`,
+          Number(view.getBigUint64(i * 16 + 8, true)),
+        ],
+      ]),
+    );
   }
   destroy() {
     if (this.released) return;
@@ -398,6 +545,8 @@ export class DynarmicBackend implements CpuBackend {
     this.dyn._dh_destroy(this.host);
     if (this.transfer) this.dyn._free(this.transfer);
     this.bindings.clear();
+    this.nativeHooks.clear();
+    for (const bindings of this.bindingsByKind) bindings.clear();
     this.dyn.removeFunction(this.eventPointer);
     if (this.timePointer) this.dyn.removeFunction(this.timePointer);
     this.released = true;

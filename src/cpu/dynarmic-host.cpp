@@ -2,6 +2,7 @@
 // memory.
 #include "dynarmic-system.h"
 #include "dynarmic/backend/wasm/a32_interface.h"
+#include "dynarmic/backend/wasm/abi.h"
 #include "dynarmic/frontend/A32/a32_ir_emitter.h"
 #include "dynarmic/interface/A32/a32.h"
 #include "dynarmic/interface/exclusive_monitor.h"
@@ -21,6 +22,7 @@ using Callback = int (*)(U32, U32, U32, U64);
 using Clock = void (*)(U64, U32);
 struct Hook {
   U32 id, kind, begin, end;
+  U32 action = 0;
   bool matches(U32 a) const { return begin > end || (a >= begin && a <= end); }
 };
 constexpr U64 Never = ~U64(0);
@@ -38,11 +40,16 @@ enum Error : U32 {
   FetchProtected = 14,
   InvalidArgument = 15
 };
+#include "native-compose.h"
 struct Host final : A32::UserCallbacks {
   ArmSystem sys;
-  Backend::Wasm::BoundaryState boundary{};
-  U64 irq_count = 0, undefined_count = 0;
+  U64 irq_count = 0, undefined_count = 0, division_count = 0;
   U32 undefined_pc = 0;
+#ifdef XHALF_PROFILE_HOOKS
+  // Alternating checks/hits for each HookKind, per CPU instance. Counter-only:
+  // no addresses, firmware bytes, timestamps or per-block JavaScript calls.
+  std::array<U64, 14> hook_profile{};
+#endif
   Callback callback;
   Clock clock = nullptr;
   ExclusiveMonitor monitor{1};
@@ -62,11 +69,19 @@ struct Host final : A32::UserCallbacks {
   U64 now = 0, ticks = 0, remainder = 0, deadline = Never, jit_count = 0,
       slow_count = 0;
   bool stopped = false, irq = false, exact = false, pending = false,
-       redispatch = false;
+       redispatch = false, native_redirect = false;
   U32 pending_pc = 0;
+  // A conservative fixed filter for code/block hooks. Address collisions only
+  // cause extra exact checks; they never invoke a callback by themselves.
+  static constexpr U32 HookSlots = 1 << 16;
+  std::array<uint8_t, HookSlots> instruction_hook_slots{};
+  uint8_t global_instruction_hooks = 0;
+  Backend::Wasm::BoundaryState boundary{};
   std::unordered_set<U32> code_points, block_points;
   std::vector<Hook> code_ranges, block_ranges;
   explicit Host(Callback cb) : callback(cb) {
+    boundary.hook_slots = static_cast<U32>(
+        reinterpret_cast<uintptr_t>(instruction_hook_slots.data()));
     A32::UserConfig c;
     c.callbacks = this;
     c.global_monitor = &monitor;
@@ -74,9 +89,9 @@ struct Host final : A32::UserCallbacks {
     c.enable_cycle_counting = true;
     c.hook_hint_instructions = true;
     c.arch_version = A32::ArchVersion::v8;
-    // Observe every block until guarded region execution is enabled.
-    boundary.flags = Backend::Wasm::kBoundaryDisableRegions;
-    jit = Backend::Wasm::CreateA32Jit(c, &boundary);
+    jit = Backend::Wasm::CreateA32Jit(
+        c, &boundary, true,
+        {[](void *user) { static_cast<Host *>(user)->after_ticks(); }, this});
     jit->SetCpsr(0x400001d3);
   }
   ~Host() {
@@ -84,12 +99,31 @@ struct Host final : A32::UserCallbacks {
     for (auto &a : allocations)
       free(a.data);
   }
+  void request_boundary() {
+    boundary.flags |= Backend::Wasm::kBoundaryDisableRegions;
+  }
   void index_hooks() {
+    instruction_hook_slots.fill(0);
+    global_instruction_hooks = 0;
+    bool local_instruction_hooks = false;
     code_points.clear();
     block_points.clear();
     code_ranges.clear();
     block_ranges.clear();
     for (auto &h : hooks) {
+      if (h.kind == 1 || h.kind == 2) {
+        const uint8_t mask = 1u << h.kind;
+        const U32 first = h.begin >> 1, last = h.end >> 1;
+        // Thumb and ARM instruction addresses are at least halfword-aligned;
+        // odd range endpoints conservatively share their enclosing slot.
+        if (h.begin > h.end || U64(last) - first + 1 >= HookSlots)
+          global_instruction_hooks |= mask;
+        else {
+          local_instruction_hooks = true;
+          for (U32 slot = first; slot <= last; slot++)
+            instruction_hook_slots[slot & (HookSlots - 1)] |= mask;
+        }
+      }
       if (h.kind == 1) {
         if (h.begin == h.end)
           code_points.insert(h.begin);
@@ -103,9 +137,26 @@ struct Host final : A32::UserCallbacks {
           block_ranges.push_back(h);
       }
     }
+    boundary.instruction_hooks =
+        global_instruction_hooks | (local_instruction_hooks ? 1 : 0);
+    request_boundary();
   }
   bool interested(U32 k, U32 a) {
+#ifdef XHALF_PROFILE_HOOKS
+    hook_profile[k * 2]++;
+    const bool hit = matches_hook(k, a);
+    hook_profile[k * 2 + 1] += hit;
+    return hit;
+#else
+    return matches_hook(k, a);
+#endif
+  }
+  bool matches_hook(U32 k, U32 a) {
     if (k == 1 || k == 2) {
+      if (!((instruction_hook_slots[(a >> 1) & (HookSlots - 1)] |
+             global_instruction_hooks) &
+            (1u << k)))
+        return false;
       auto &points = k == 1 ? code_points : block_points;
       if (points.contains(a))
         return true;
@@ -121,7 +172,33 @@ struct Host final : A32::UserCallbacks {
     return false;
   }
 
-  void emit(U32 k, U32 a, U32 n, U64 v = 0) { callback(k, a, n, v); }
+  void emit(U32 k, U32 a, U32 n, U64 v = 0) {
+    if (k != 1) {
+      callback(k, a, n, v);
+      return;
+    }
+    U32 action = 0;
+    bool observable = false;
+    for (const auto &h : hooks)
+      if (h.kind == k && h.matches(a)) {
+        if (h.action)
+          action = h.action;
+        else
+          observable = true;
+      }
+    if (observable)
+      callback(k, a, n, v);
+    if (action && !stopped && jit->Regs()[15] == a) {
+      auto &r = jit->Regs();
+      const U32 numerator = r[0], denominator = r[1];
+      r[0] = denominator ? numerator / denominator : (numerator ? ~U32(0) : 0);
+      if (action == 2)
+        r[1] = denominator ? numerator % denominator : 0;
+      r[15] = r[14];
+      division_count++;
+      native_redirect = true;
+    }
+  }
   void fault(U32 a, U32 access) {
     error = access == 19   ? ReadUnmapped
             : access == 20 ? WriteUnmapped
@@ -269,6 +346,67 @@ struct Host final : A32::UserCallbacks {
       at += count;
     }
     return Ok;
+  }
+  // Return direct memory only when every page belongs to one contiguous native
+  // allocation. The caller uses it synchronously while guest execution is
+  // paused; fragmented mappings retain the copying transfer path.
+  U32 view(U32 a, U32 n, uint8_t **buffer) {
+    *buffer = nullptr;
+    if (!n)
+      return Ok;
+    if (!range(a, n))
+      return InvalidArgument;
+    if (!mapped(a, n))
+      return ReadUnmapped;
+    const U64 first = a >> 12, last = (U64(a) + n - 1) >> 12;
+    for (U64 p = first + 1; p <= last; p++)
+      if (pages[p] != pages[p - 1] + 4096)
+        return Ok;
+    *buffer = pages[first] + (a & 4095);
+    return Ok;
+  }
+  U32 copy(U32 destination, U32 source, U32 n) {
+    if (!n)
+      return Ok;
+    if (!range(source, n) || !range(destination, n))
+      return InvalidArgument;
+    if (!mapped(source, n))
+      return ReadUnmapped;
+    if (!mapped(destination, n))
+      return WriteUnmapped;
+    uint8_t *from, *to;
+    view(source, n, &from);
+    view(destination, n, &to);
+    if (from && to) {
+      memmove(to, from, n);
+      return Ok;
+    }
+    // Fragmented mappings and overlapping ranges retain an exact snapshot.
+    std::unique_ptr<uint8_t, decltype(&free)> temporary(
+        static_cast<uint8_t *>(malloc(n)), &free);
+    if (!temporary)
+      return NoMemory;
+    transfer(source, n, temporary.get(), false);
+    return transfer(destination, n, temporary.get(), true);
+  }
+  U32 fill(U32 a, U32 n, uint8_t value) {
+    if (!n)
+      return Ok;
+    if (!range(a, n))
+      return InvalidArgument;
+    if (!mapped(a, n))
+      return WriteUnmapped;
+    const U64 end = U64(a) + n;
+    for (U64 at = a; at < end;) {
+      const U32 count = std::min<U64>(4096 - (at & 4095), end - at);
+      memset(pages[at >> 12] + (at & 4095), value, count);
+      at += count;
+    }
+    return Ok;
+  }
+  U32 compose4(const NativeComposeSurface *surface,
+               const NativeComposeLayer *layers, U32 count) {
+    return nativeCompose4(*this, surface, layers, count);
   }
   std::optional<U32> MemoryReadCode(U32 a) override {
     if (!valid(a, 4, 4))
@@ -785,6 +923,10 @@ struct Host final : A32::UserCallbacks {
     update_clock(now + n * unit);
   }
   U64 GetTicksRemaining() override {
+    // A transient request only forces the current in-region edge to return.
+    // Exact execution and `until` remain disabled for subsequent compilation.
+    boundary.flags =
+        (exact || until) ? Backend::Wasm::kBoundaryDisableRegions : 0;
     if (stopped || pending || charged >= budget || (sys.waiting && !irq) ||
         (until && jit->Regs()[15] == until)) {
       jit->HaltExecution();
@@ -794,14 +936,48 @@ struct Host final : A32::UserCallbacks {
       sys.exception(*jit, 18, 0x18, jit->Regs()[15] + 4, true);
       irq_count++;
     }
-    U32 pc = jit->Regs()[15];
-    if (interested(2, pc))
-      emit(2, pc, 4);
-    if (interested(1, pc))
-      emit(1, pc, 4);
+    do {
+      native_redirect = false;
+      U32 pc = jit->Regs()[15];
+      if (interested(2, pc))
+        emit(2, pc, 4);
+      if (interested(1, pc))
+        emit(1, pc, 4);
+    } while (native_redirect && !stopped);
     if (stopped)
       jit->HaltExecution();
-    return 0;
+
+    // AddTicks advances both virtual time and the timer counter. Bound this
+    // native dispatch's allowance to the first event it must observe.
+    U64 allowance = budget - charged;
+    if (clock && deadline > now && unit)
+      allowance = std::min(allowance, (deadline - now + unit - 1) / unit);
+    if (sys.next_timer != Never && sys.next_timer > ticks && unit && freq) {
+      const U64 rate = U64(unit) * freq;
+      const U64 needed = (sys.next_timer - ticks) * 1000000000 - remainder;
+      allowance = std::min(allowance, (needed + rate - 1) / rate);
+    }
+    return std::max<U64>(1, allowance);
+  }
+  void after_ticks() {
+    // The dispatcher charged the completed region before this observer.
+    // Interpret exits materialize state and leave the system instruction for
+    // native execution. Clear only our fallback halt, preserving invalidation
+    // and any explicit stop requested by callbacks.
+    if (pending && !stopped) {
+      pending = false;
+      jit->ClearHalt();
+      jit->Regs()[15] = pending_pc;
+      execute_system(pending_pc);
+      charged++;
+      slow_count++;
+      update_clock(now + unit);
+      if (error || stopped || (sys.waiting && !irq))
+        jit->HaltExecution();
+    } else if (redispatch && !stopped) {
+      redispatch = false;
+      jit->ClearHalt();
+    }
   }
   U32 run(U32 begin, U32 count, U32 end, bool single) {
     if (exact != single || until != end)
@@ -855,8 +1031,22 @@ EMSCRIPTEN_KEEPALIVE U32 dh_protect(Host *h, U32 a, U32 n, U32 p) {
 EMSCRIPTEN_KEEPALIVE U32 dh_read(Host *h, U32 a, U32 n, uint8_t *p) {
   return h->transfer(a, n, p, false);
 }
+EMSCRIPTEN_KEEPALIVE U32 dh_view(Host *h, U32 a, U32 n, uint8_t **p) {
+  return h->view(a, n, p);
+}
 EMSCRIPTEN_KEEPALIVE U32 dh_write(Host *h, U32 a, U32 n, uint8_t *p) {
   return h->transfer(a, n, p, true);
+}
+EMSCRIPTEN_KEEPALIVE U32 dh_copy(Host *h, U32 d, U32 s, U32 n) {
+  return h->copy(d, s, n);
+}
+EMSCRIPTEN_KEEPALIVE U32 dh_fill(Host *h, U32 a, U32 n, U32 v) {
+  return h->fill(a, n, v);
+}
+EMSCRIPTEN_KEEPALIVE U32 dh_compose4(Host *h, const NativeComposeSurface *s,
+                                     const NativeComposeLayer *layers,
+                                     U32 count) {
+  return h->compose4(s, layers, count);
 }
 EMSCRIPTEN_KEEPALIVE U32 dh_run(Host *h, U32 b, U32 n, U32 e, U32 exact) {
   return h->run(b, n, e, exact);
@@ -918,10 +1108,18 @@ EMSCRIPTEN_KEEPALIVE void dh_configure(Host *h, U32 f, U32 m) {
   h->sys.configure(f, m);
 }
 EMSCRIPTEN_KEEPALIVE U32 dh_advance(Host *h, U64 t) {
+  h->request_boundary();
   return h->sys.advance(t);
 }
 EMSCRIPTEN_KEEPALIVE U32 dh_waiting(Host *h) {
   return h->sys.waiting && !h->irq;
+}
+EMSCRIPTEN_KEEPALIVE const U64 *dh_hook_profile(Host *h) {
+#ifdef XHALF_PROFILE_HOOKS
+  return h->hook_profile.data();
+#else
+  return nullptr;
+#endif
 }
 EMSCRIPTEN_KEEPALIVE U32 dh_hook(Host *h, U32 k, U32 b, U32 e) {
   U32 id = h->next++;
@@ -932,6 +1130,18 @@ EMSCRIPTEN_KEEPALIVE U32 dh_hook(Host *h, U32 k, U32 b, U32 e) {
   h->jit->ClearCache();
   return id;
 }
+// Opt-in AAPCS unsigned division replacement. The SDK caller validates the
+// firmware binding before installation; this runtime owns no guest addresses.
+EMSCRIPTEN_KEEPALIVE U32 dh_division_hook(Host *h, U32 pc, U32 remainder) {
+  U32 id = h->next++;
+  h->hooks.push_back({id, 1, pc, pc, remainder ? 2u : 1u});
+  h->index_hooks();
+  h->jit->ClearCache();
+  return id;
+}
+EMSCRIPTEN_KEEPALIVE U64 dh_division_count(Host *h) {
+  return h->division_count;
+}
 EMSCRIPTEN_KEEPALIVE void dh_unhook(Host *h, U32 id) {
   std::erase_if(h->hooks, [&](auto &x) { return x.id == id; });
   h->index_hooks();
@@ -940,9 +1150,11 @@ EMSCRIPTEN_KEEPALIVE void dh_unhook(Host *h, U32 id) {
 }
 EMSCRIPTEN_KEEPALIVE void dh_stop(Host *h) {
   h->stopped = true;
+  h->request_boundary();
   h->jit->HaltExecution();
 }
 EMSCRIPTEN_KEEPALIVE void dh_invalidate(Host *h, U32 a, U32 n) {
+  h->request_boundary();
   if (n)
     h->jit->InvalidateCacheRange(a, n);
   else
@@ -950,6 +1162,7 @@ EMSCRIPTEN_KEEPALIVE void dh_invalidate(Host *h, U32 a, U32 n) {
 }
 EMSCRIPTEN_KEEPALIVE void dh_irq(Host *h, U32 on) {
   h->irq = on;
+  h->request_boundary();
   if (on)
     h->sys.waiting = false;
 }
@@ -957,9 +1170,13 @@ EMSCRIPTEN_KEEPALIVE void dh_clock(Host *h, U32 unit, U32 f, Clock cb) {
   h->unit = unit;
   h->freq = f;
   h->clock = cb;
+  h->request_boundary();
 }
 EMSCRIPTEN_KEEPALIVE U64 dh_now(Host *h) { return h->now; }
-EMSCRIPTEN_KEEPALIVE void dh_deadline(Host *h, U64 d) { h->deadline = d; }
+EMSCRIPTEN_KEEPALIVE void dh_deadline(Host *h, U64 d) {
+  h->deadline = d;
+  h->request_boundary();
+}
 EMSCRIPTEN_KEEPALIVE void dh_idle(Host *h, U64 limit) {
   h->sys.advance(h->sys.counter);
   auto t = h->sys.next_timer;

@@ -99,7 +99,8 @@ async function startRuntime(
     const watch = new ProgressWatch();
     let last = 0,
       ready = false,
-      lastMenuSignature = '';
+      lastMenuSignature = '',
+      lastMetrics: Record<string, number | boolean | string> | undefined;
     runner = new CooperativeRunner(
       () => {
         const pendingInput =
@@ -127,8 +128,25 @@ async function startRuntime(
           last = performance.now();
           metricsDirty = false;
           lastMenuSignature = menuSignature;
-          const metrics = core!.diagnostics();
+          /* A full diagnostics pass walks ThreadX structures through dozens of
+             guest reads. During an input burst only the interactive fields
+             change, so refresh those and carry the expensive ones over. */
+          let metrics: Record<string, number | boolean | string>;
+          if (inputBurst && lastMetrics) {
+            metrics = {
+              ...lastMetrics,
+              virtualMs: Number(core!.virtualNs / 1000000n),
+              instructions: core!.instructions,
+            };
+          } else {
+            metrics = core!.diagnostics();
+          }
           metrics.bootMs = last - started;
+          metrics.menu = menu?.id ?? 0;
+          metrics.index = menu?.index ?? 0;
+          metrics.menuCount = menu?.count ?? 0;
+          metrics.mode = menu?.mode ?? 0;
+          metrics.category = menu?.category ?? 0;
           metrics.inputQueued = input!.pending.length;
           metrics.memoryCalls = acceleration.memoryCalls;
           metrics.graphicsMs = graphics.graphicsMs;
@@ -166,11 +184,12 @@ async function startRuntime(
           )
             epoch = { wall: performance.now(), virtual: core!.virtualNs };
           const progress = watch.sample(
-            `${metrics.threads}:${metrics.storageReadBytes}:${metrics.menu}:${metrics.threadRuns}`,
+            `${metrics.threads}:${metrics.storageReadBytes}:${metrics.menu}:${metrics.threadRuns}:${metrics.instructions}`,
             last,
           );
           metrics.stalled = progress.stalled;
           metrics.unchangedMs = progress.unchangedMs;
+          lastMetrics = metrics;
           send({ type: 'metrics', metrics, request, session });
           if (
             !ready &&
@@ -228,14 +247,17 @@ worker.onmessage = async (event: MessageEvent<Command>) => {
       if (command.type === 'frameAck') {
         display?.acknowledge(command.frame, command.pixels);
         metricsDirty = true;
+        runner?.poke();
       } else if (command.type === 'key') {
         inputBurst = true;
         if (command.down) input?.press(command.key);
         else input?.release(command.key);
+        runner?.poke();
       } else if (command.type === 'pointer') {
         if (command.action === 'cancel') {
           input?.touch.cancelPointer();
           inputBurst = false;
+          runner?.poke();
           return;
         }
         inputBurst = true;
@@ -257,6 +279,7 @@ worker.onmessage = async (event: MessageEvent<Command>) => {
           { width: abi.pointer_size[0]!, height: abi.pointer_size[1]! },
         );
         input.touch.pointer(command.action, point.x, point.y, command.time);
+        runner?.poke();
       } else if (command.type === 'start' || command.type === 'reset')
         await startRuntime(request, session, command.type === 'reset');
       else if (command.type === 'pause' && runner) {

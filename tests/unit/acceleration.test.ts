@@ -10,7 +10,12 @@ test.each(['accel.memory', 'accel.raster', 'accel.pixels'])(
     profile.disabledGroups.set(group, 'Instruction digest mismatch');
     const bind = vi.fn();
     expect(
-      () => new BulkAcceleration({ profile, bind } as unknown as RuntimeCore),
+      () =>
+        new BulkAcceleration({
+          profile,
+          bind,
+          cpu: {},
+        } as unknown as RuntimeCore),
     ).not.toThrow();
     const rejected = Object.entries(profile.firmware.symbols)
       .filter(([, s]) => s.group === group)

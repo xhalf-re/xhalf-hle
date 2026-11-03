@@ -43,7 +43,8 @@ export class BulkAcceleration {
           this.fallbacks++;
           return;
         }
-        core.cpu.write(dst!, core.cpu.read(src!, size!));
+        if (core.cpu.copy) core.cpu.copy(dst!, src!, size!);
+        else core.cpu.write(dst!, core.cpu.read(src!, size!));
         this.memoryCalls++;
         this.memoryBytes += size!;
         core.sdk.ret(dst);
@@ -54,11 +55,42 @@ export class BulkAcceleration {
           this.fallbacks++;
           return;
         }
-        core.cpu.write(dst!, new Uint8Array(size!).fill(value! & 255));
+        if (core.cpu.fill) core.cpu.fill(dst!, size!, value! & 255);
+        else core.cpu.write(dst!, new Uint8Array(size!).fill(value! & 255));
         this.memoryCalls++;
         this.memoryBytes += size!;
         core.sdk.ret(dst);
       });
+    }
+    /* AEABI software division loops run ~100+ ARM instructions per call in the
+       blend paths; the exact results are one host division each. Divide by
+       zero returns 0/~0 through __aeabi_idiv0, which is a bare bx lr here. */
+    if (this.group('aeabi', ['libc.uidiv', 'libc.uidivmod'])) {
+      if (typeof core.cpu.hookUnsignedDivision === 'function') {
+        for (const name of ['libc.uidiv', 'libc.uidivmod']) {
+          core.hooks.set(
+            name,
+            core.cpu.hookUnsignedDivision(
+              core.profile.address(name),
+              name.endsWith('mod'),
+            ),
+          );
+        }
+      } else {
+        core.bind('libc.uidiv', () => {
+          const [n, d] = core.sdk.arguments(2);
+          core.sdk.ret(d! === 0 ? (n! === 0 ? 0 : -1) : Math.floor(n! / d!));
+        });
+        core.bind('libc.uidivmod', () => {
+          const [n, d] = core.sdk.arguments(2);
+          if (d! === 0) {
+            core.sdk.ret(n! === 0 ? 0 : -1, 0);
+            return;
+          }
+          const q = Math.floor(n! / d!);
+          core.sdk.ret(q, (n! - d! * q) >>> 0);
+        });
+      }
     }
     const a = this.abi,
       names = [

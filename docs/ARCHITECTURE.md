@@ -72,6 +72,8 @@ The GIC is a single-CPU, 256-interrupt model with eight priority bits and no Sec
 
 Compiled-block retention is bounded. A browser code-allocation failure reduces the cache target, releases cold Wasm modules and yields the Worker for collection before retrying the same guest PC. The retained/peak/released block counts and allocation retries appear in diagnostics. This cache is separate from guest RAM and its Wasm linear memory.
 
+Instruction-hook queries use a 64 KiB conservative address filter before the exact point/range matcher. Collisions only add exact checks; wide/global ranges fall back to the original matcher. The derived index is rebuilt when hooks change. It does not alter memory-hook matching or the block boundary's IRQ/time/budget order. Optional native hook counters compile out of ordinary builds and are marked in diagnostic runtime metadata.
+
 `src/cpu/dynarmic-host.cpp` bounds execution at translated-block boundaries and advances board time in C/Wasm. Dynarmic's block cycle counts supply the instruction-budget estimate; the final block may cross a slice budget. Exact `run` requests split blocks at instruction boundaries. The board uses the machine's configured two nanoseconds per budget unit.
 
 The 27 MHz architectural counter advances at TB boundaries through a native observer that runs before IRQ selection. The five generic timer outputs and scheduled peripheral deadlines update the GIC during execution; JavaScript callbacks occur only when a deadline is due or timer levels change. MMIO also synchronizes device time. Timer programming, the counter and the external IRQ line survive CPU-context restoration. Original CP15 and MPIDR instructions run at any ARM/Thumb PC without firmware-address substitutions.

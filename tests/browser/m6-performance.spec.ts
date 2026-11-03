@@ -1,22 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
-
-type Metrics = Record<string, number | boolean | string>;
-
-async function metrics(page: Page): Promise<Metrics> {
-  try {
-    const fast = await page.evaluate(
-      () => (window as unknown as { __xhalfMetrics?: Metrics }).__xhalfMetrics,
-    );
-    if (fast) return fast;
-    return JSON.parse(
-      (await page.locator('#diagnostics').textContent())!,
-    ) as Metrics;
-  } catch (error) {
-    return { diagnosticError: String(error) };
-  }
-}
+import { metrics, navigate } from './performance-helpers';
 
 async function boot(page: Page, timeout = 120000): Promise<number> {
   page.on('crash', () => console.log('Performance page crashed'));
@@ -72,6 +57,7 @@ test('M6 cold boot and 100 native navigation samples', async ({ browser }) => {
       )
     ).json();
     expect(runtimeBuild.backend).toBe('dynarmic');
+    expect(runtimeBuild.instrumentation?.nativeHooks ?? false).toBe(false);
     expect(runtimeBuild.dependencies).not.toContain('unicorn');
     await page.locator('canvas').focus();
     const navigationMs: number[] = [];
@@ -80,55 +66,7 @@ test('M6 cold boot and 100 native navigation samples', async ({ browser }) => {
       const before = await metrics(page),
         code = i % 2 === 0 ? 'ArrowDown' : 'ArrowUp',
         expected = Number(before.index) + (i % 2 === 0 ? 1 : -1);
-      const elapsed = await page.evaluate(
-        ({ code, expected }) =>
-          new Promise<number>((resolve, reject) => {
-            const canvas = document.querySelector<HTMLCanvasElement>('canvas')!,
-              firstFrame = Number(canvas.dataset.frame),
-              started = performance.now();
-            let scheduled = false;
-            const observer = new MutationObserver(() => {
-              const state = (window as unknown as { __xhalfMetrics?: Metrics })
-                  .__xhalfMetrics,
-                frame = Number(canvas.dataset.frame);
-              if (
-                !scheduled &&
-                state?.index === expected &&
-                state.inputIdle === true &&
-                state.frameCurrent === true &&
-                frame > firstFrame &&
-                frame >= Number(state.frames)
-              ) {
-                scheduled = true;
-                requestAnimationFrame(() => {
-                  clearTimeout(timeout);
-                  observer.disconnect();
-                  resolve(performance.now() - started);
-                });
-              }
-            });
-            const timeout = setTimeout(() => {
-              observer.disconnect();
-              reject(Error('Visible navigation deadline'));
-            }, 5000);
-            observer.observe(document.querySelector('#diagnostics')!, {
-              childList: true,
-              characterData: true,
-              subtree: true,
-            });
-            observer.observe(canvas, {
-              attributes: true,
-              attributeFilter: ['data-frame'],
-            });
-            canvas.dispatchEvent(
-              new KeyboardEvent('keydown', { code, key: code, bubbles: true }),
-            );
-            canvas.dispatchEvent(
-              new KeyboardEvent('keyup', { code, key: code, bubbles: true }),
-            );
-          }),
-        { code, expected },
-      );
+      const elapsed = await navigate(page, code, expected);
       navigationMs.push(elapsed);
     }
     const sorted = [...navigationMs].sort((a, b) => a - b),

@@ -1,6 +1,67 @@
 import { expect, test } from 'vitest';
 import { combinePixels, fillPixels } from '../../src/services/images';
 import type { Composition } from '../../src/services/images';
+test('layer views borrow source pixels without replacing the destination snapshot', () => {
+  const memory = Uint8Array.of(255, 1, 11, 21, 255, 2, 12, 22),
+    surface = { address: 0, width: 2, height: 1, bpp: 4, format: 14 },
+    outputReads: number[] = [],
+    layerReads: number[] = [];
+  combinePixels(
+    {
+      surface,
+      layers: [
+        {
+          surface,
+          crop: [0, 0, 2, 1],
+          target: [0, 0, 2, 1],
+          rotate: false,
+          mirrorX: true,
+          mirrorY: false,
+        },
+      ],
+    },
+    (at, n) => {
+      outputReads.push(at);
+      return memory.slice(at, at + n);
+    },
+    (at, bytes) => memory.set(bytes, at),
+    (at, n) => {
+      layerReads.push(at);
+      return memory.subarray(at, at + n);
+    },
+  );
+  expect(outputReads).toEqual([0]);
+  expect(layerReads).toEqual([0]);
+  expect([...memory]).toEqual([255, 2, 12, 22, 255, 1, 11, 21]);
+});
+
+test('clipped contiguous ABGR layers retain source origin and native blending', () => {
+  const memory = new Uint8Array(64);
+  for (let i = 0; i < 6; i++) memory.set([255, 1, 2, 3], i * 4);
+  memory.set([0, 8, 9, 10, 255, 11, 12, 13, 128, 21, 22, 23], 32);
+  combinePixels(
+    {
+      surface: { address: 0, width: 3, height: 2, bpp: 4, format: 14 },
+      layers: [
+        {
+          surface: { address: 32, width: 3, height: 2, bpp: 4, format: 14 },
+          crop: [0, 0, 3, 1],
+          target: [-1, 1, 3, 1],
+          rotate: false,
+          mirrorX: false,
+          mirrorY: false,
+        },
+      ],
+    },
+    (at, n) => memory.slice(at, at + n),
+    (at, bytes) => memory.set(bytes, at),
+  );
+  expect([...memory.slice(0, 24)]).toEqual([
+    255, 1, 2, 3, 255, 1, 2, 3, 255, 1, 2, 3, 255, 11, 12, 13, 255, 11, 12, 13,
+    255, 1, 2, 3,
+  ]);
+});
+
 test('crop, clockwise rotation, mirrors and nearest scaling compose in native order', () => {
   const memory = new Uint8Array(128);
   for (let i = 0; i < 6; i++) memory.set([255, i + 1, 0, 0], 64 + i * 4);
@@ -138,4 +199,92 @@ test('packed RGB565 clipping and mirroring preserve both bytes', () => {
   expect([...memory.slice(0, 16)]).toEqual([
     3, 13, 2, 12, 2, 12, 0, 0, 6, 16, 5, 15, 5, 15, 0, 0,
   ]);
+});
+
+test.each([
+  [false, false, false, [1, 2, 3, 4, 5, 6]],
+  [false, true, false, [3, 2, 1, 6, 5, 4]],
+  [false, false, true, [4, 5, 6, 1, 2, 3]],
+  [false, true, true, [6, 5, 4, 3, 2, 1]],
+  [true, false, false, [4, 1, 5, 2, 6, 3]],
+  [true, true, false, [1, 4, 2, 5, 3, 6]],
+  [true, false, true, [6, 3, 5, 2, 4, 1]],
+  [true, true, true, [3, 6, 2, 5, 1, 4]],
+] as const)(
+  'cropped asymmetric pixels rotate=%s mirrorX=%s mirrorY=%s',
+  (rotate, mirrorX, mirrorY, expected) => {
+    for (const bpp of [2, 4]) {
+      for (const offset of [0, 1]) {
+        const memory = new Uint8Array(256).fill(0x5a),
+          width = rotate ? 2 : 3,
+          height = rotate ? 3 : 2,
+          pixel = (label: number) =>
+            bpp === 4
+              ? [255, label, label + 10, label + 20]
+              : [label, label + 10];
+        // A 3x2 crop inside a padded 5x4 source. Expectations above are
+        // hand-written pixel layouts, independent of the sampling arithmetic.
+        for (let label = 1; label <= 6; label++)
+          memory.set(
+            pixel(label),
+            128 +
+              (Math.floor((label - 1) / 3) * 5 + 6 + ((label - 1) % 3)) * bpp,
+          );
+        combinePixels(
+          {
+            surface: { address: 0, width, height, bpp, format: 0 },
+            layers: [
+              {
+                surface: { address: 128, width: 5, height: 4, bpp, format: 0 },
+                crop: [1, 1, 3, 2],
+                target: [0, 0, width, height],
+                rotate,
+                mirrorX,
+                mirrorY,
+              },
+            ],
+          },
+          (at, n) => {
+            const bytes = new Uint8Array(n + offset).subarray(offset);
+            bytes.set(memory.subarray(at, at + n));
+            return bytes;
+          },
+          (at, bytes) => memory.set(bytes, at),
+        );
+        expect([...memory.slice(0, 6 * bpp)]).toEqual(expected.flatMap(pixel));
+        expect(memory[6 * bpp]).toBe(0x5a);
+      }
+    }
+  },
+);
+
+test('layer order uses source snapshots when the source aliases the destination', () => {
+  const memory = Uint8Array.of(255, 1, 11, 21, 255, 2, 12, 22),
+    surface = { address: 0, width: 2, height: 1, bpp: 4, format: 14 };
+  combinePixels(
+    {
+      surface,
+      layers: [
+        {
+          surface,
+          crop: [0, 0, 2, 1],
+          target: [0, 0, 2, 1],
+          rotate: false,
+          mirrorX: true,
+          mirrorY: false,
+        },
+        {
+          surface,
+          crop: [0, 0, 1, 1],
+          target: [0, 0, 1, 1],
+          rotate: false,
+          mirrorX: false,
+          mirrorY: false,
+        },
+      ],
+    },
+    (at, n) => memory.slice(at, at + n),
+    (at, bytes) => memory.set(bytes, at),
+  );
+  expect([...memory]).toEqual([255, 1, 11, 21, 255, 1, 11, 21]);
 });

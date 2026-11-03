@@ -36,3 +36,5 @@ The performance command builds the web app but does not rebuild Wasm. Do not cha
 ## Distribution
 
 The published dynarmic.js Wasm backend is MIT licensed. The build copies its license and third-party notices directly from the pinned source, together with the original Dynarmic (0BSD), mcl, fmt and robin-map licenses, into `runtime/licenses/`. The source URL, revision, local patches and build scripts identify the runtime's inputs. Original project code remains MIT. Firmware and extracted resources are never build inputs or public artifacts.
+
+For local hook-count diagnostics, `XHALF_PROFILE_HOOKS=1 npm run dynarmic:build` enables per-instance native interest-query counts. Build metadata marks instrumentation. The production default compiles it out; restore the default before performance acceptance. See [profiling](performance/PROFILING.md).

@@ -32,6 +32,12 @@ host = ROOT/'src/cpu/dynarmic-host.cpp'
 exports = sorted(set(['_malloc', '_free'] +
     ['_'+x for x in re.findall(r'EMSCRIPTEN_KEEPALIVE\s+\w+\s*\*?\s*(dh_\w+)\(',host.read_text())] +
     ['_'+x for x in re.findall(r'dynarmic_wasm_[a-z0-9_]+', ''.join(p.read_text() for p in sorted((SOURCE/'src/dynarmic/backend/wasm').glob('thunks*.cpp'))))]))
+profile_hooks = os.environ.get('XHALF_PROFILE_HOOKS', '0')
+profile_dispatch = os.environ.get('XHALF_PROFILE_DISPATCH', '0')
+if profile_hooks not in ('0', '1'): raise RuntimeError('XHALF_PROFILE_HOOKS must be 0 or 1')
+if profile_dispatch not in ('0', '1'): raise RuntimeError('XHALF_PROFILE_DISPATCH must be 0 or 1')
+hook_definition = 'XHALF_PROFILE_HOOKS=1' if profile_hooks == '1' else ''
+dispatch_definition = 'DYNARMIC_WASM_PROFILE=1' if profile_dispatch == '1' else ''
 build = ROOT/'.cache/dynarmic-build'
 if '--clean' in sys.argv and (build/'out').exists(): shutil.rmtree(build/'out')
 build.mkdir(parents=True,exist_ok=True)
@@ -61,8 +67,9 @@ set(DYNARMIC_JS_EXAMPLES OFF CACHE BOOL "")
 add_subdirectory("{SOURCE}" dynarmic)
 add_executable(xhalf_dynarmic "{host}")
 target_link_libraries(xhalf_dynarmic PRIVATE dynarmic merry::mcl)
+target_compile_definitions(dynarmic PRIVATE {dispatch_definition})
 target_include_directories(xhalf_dynarmic PRIVATE "{boost}")
-target_compile_definitions(xhalf_dynarmic PRIVATE BOOST_NO_CXX98_FUNCTION_BASE)
+target_compile_definitions(xhalf_dynarmic PRIVATE BOOST_NO_CXX98_FUNCTION_BASE {hook_definition})
 target_link_options(xhalf_dynarmic PRIVATE
  {debug}
  --emit-symbol-map
@@ -92,7 +99,7 @@ for source, target in [
     shutil.copyfile(source, licenses/target)
 
 def digest(p): return hashlib.sha256(p.read_bytes()).hexdigest()
-(output/'dynarmic-build.json').write_text(json.dumps({'source':LOCK,'host':digest(host),'system':digest(ROOT/'src/cpu/dynarmic-system.h'),'codeCache':digest(ROOT/'scripts/jit-code-cache.js'),'patches':{p.name:digest(p) for p in (ROOT/'patches/dynarmic').glob('*.patch')},'backend':'dynarmic','dependencies':['dynarmic.js','dynarmic','mcl','fmt','robin-map'],'artifacts':{p.name:digest(p) for p in output.glob('dynarmic-arm.*')}},indent=2)+'\n')
+(output/'dynarmic-build.json').write_text(json.dumps({'source':LOCK,'host':digest(host),'system':digest(ROOT/'src/cpu/dynarmic-system.h'),'codeCache':digest(ROOT/'scripts/jit-code-cache.js'),'patches':{p.name:digest(p) for p in (ROOT/'patches/dynarmic').glob('*.patch')},'backend':'dynarmic','instrumentation':{'nativeHooks':profile_hooks=='1','dispatch':profile_dispatch=='1'},'dependencies':['dynarmic.js','dynarmic','mcl','fmt','robin-map'],'artifacts':{p.name:digest(p) for p in output.glob('dynarmic-arm.*')}},indent=2)+'\n')
 
 public = ROOT/'public/runtime'
 public.mkdir(parents=True,exist_ok=True)

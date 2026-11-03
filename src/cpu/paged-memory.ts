@@ -8,6 +8,7 @@ import type {
   HookKind,
 } from './backend';
 import { memoryRange } from './backend';
+import type { Composition } from '../services/images';
 /** Explicit machine RAM ranges backed lazily; never maps unknown MMIO or code. */
 export class PagedMemory implements CpuBackend {
   configureSystemRegisters(frequency: number, mpidr: number): void {
@@ -42,7 +43,10 @@ export class PagedMemory implements CpuBackend {
   constructor(
     private backend: CpuBackend,
     private ranges: readonly number[][],
-  ) {}
+  ) {
+    if (backend.hookUnsignedDivision)
+      this.hookUnsignedDivision = backend.hookUnsignedDivision.bind(backend);
+  }
   ensure(address: number, size: number): boolean {
     memoryRange(address, size);
     let covered = false;
@@ -87,9 +91,43 @@ export class PagedMemory implements CpuBackend {
     this.ensure(address, size);
     return this.backend.read(address, size);
   }
+  readInto(address: number, target: Uint8Array): void {
+    this.ensure(address, target.byteLength);
+    if (this.backend.readInto) this.backend.readInto(address, target);
+    else target.set(this.backend.read(address, target.byteLength));
+  }
+  readView(address: number, size: number): Uint8Array {
+    this.ensure(address, size);
+    if (this.backend.readView) return this.backend.readView(address, size);
+    return this.backend.read(address, size);
+  }
   write(address: number, bytes: Uint8Array): void {
     this.ensure(address, bytes.length);
     this.backend.write(address, bytes);
+  }
+  copy(destination: number, source: number, size: number): void {
+    this.ensure(source, size);
+    this.ensure(destination, size);
+    if (this.backend.copy) this.backend.copy(destination, source, size);
+    else this.backend.write(destination, this.backend.read(source, size));
+  }
+  fill(address: number, size: number, value: number): void {
+    this.ensure(address, size);
+    if (this.backend.fill) this.backend.fill(address, size, value);
+    else this.backend.write(address, new Uint8Array(size).fill(value));
+  }
+  compose4(composition: Composition): boolean {
+    if (!this.backend.compose4) return false;
+    const s = composition.surface;
+    this.ensure(s.address, s.width * s.height * s.bpp);
+    for (const layer of composition.layers) {
+      const source = layer.surface,
+        [, , cw, ch] = layer.crop,
+        [, , dw, dh] = layer.target;
+      if (cw && ch && dw && dh)
+        this.ensure(source.address, source.width * source.height * source.bpp);
+    }
+    return this.backend.compose4(composition);
   }
   readRegister(register: ArmRegister): number {
     return this.backend.readRegister(register);
@@ -117,6 +155,7 @@ export class PagedMemory implements CpuBackend {
   ): HookHandle {
     return this.backend.hook(kind, callback, begin, end);
   }
+  hookUnsignedDivision?: (address: number, remainder: boolean) => number;
   removeHook(handle: HookHandle): void {
     this.backend.removeHook(handle);
   }

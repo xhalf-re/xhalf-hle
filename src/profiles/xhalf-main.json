@@ -845,6 +845,26 @@
         "length": 16,
         "sha256": "ce165d2a891d285fff7b22ffa6ff7d213756e337fa9bcc532fbba37ca4e51166"
       }
+    },
+    "libc.uidiv": {
+      "address": 1074315216,
+      "kind": "function",
+      "optional": true,
+      "group": "accel.aeabi",
+      "guard": {
+        "length": 244,
+        "sha256": "2ad56d1ed46a81d33b4aa8a76339051663c696dd646ab2cb713d91e80e108582"
+      }
+    },
+    "libc.uidivmod": {
+      "address": 1074315460,
+      "kind": "function",
+      "optional": true,
+      "group": "accel.aeabi",
+      "guard": {
+        "length": 32,
+        "sha256": "9b06fde96b63386ad0c8c8f75a34da5e4f97d06d27d3882eab9cecc6fbaa4b16"
+      }
     }
   },
   "stubs": [

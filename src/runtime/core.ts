@@ -47,6 +47,8 @@ export class RuntimeCore {
   prepareCall: ((call: GuestCall) => GuestCall) | undefined;
   completeCall: ((call: GuestCall, status: number) => void) | undefined;
   afterStep: (() => void) | undefined;
+  /** Maximum budget charged by one host step; tests may vary this boundary. */
+  executionSliceBudget = 100_000;
   private injected:
     | {
         context: CpuContext;
@@ -362,7 +364,7 @@ export class RuntimeCore {
       unit = BigInt(this.profile.machine.ns_per_instruction);
     if (until !== undefined && until <= start)
       throw new RangeError('Runtime step deadline must be in the future');
-    let count = 100000;
+    let count = this.executionSliceBudget;
     if (until !== undefined) {
       const remaining = (until - start + unit - 1n) / unit;
       if (remaining < BigInt(count)) count = Number(remaining);
@@ -451,10 +453,9 @@ export class RuntimeCore {
       hardwareTimerFirings: this.hardwareTimers.firings,
       deviceEvents: this.peripherals.clock.pending,
       installedHooks: this.hooks.size,
-      hookHits: Array.from(this.calls.values()).reduce(
-        (n, value) => n + value,
-        0,
-      ),
+      hookHits:
+        (this.cpu.executionStats?.nativeDivisionCalls ?? 0) +
+        Array.from(this.calls.values()).reduce((n, value) => n + value, 0),
       blockedThreads: threads.filter((thread) => Number(thread.state) > 2)
         .length,
     };

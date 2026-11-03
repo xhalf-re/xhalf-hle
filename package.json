@@ -18,8 +18,11 @@
     "test:e2e": "playwright test",
     "test:performance": "npm run build && playwright test tests/browser/m6-performance.spec.ts",
     "audit:public": "node scripts/audit-public.mjs",
-    "check": "npm run format:check && npm run typecheck && npm test && npm run build && npm run audit:public",
-    "dynarmic:build": "python3 scripts/build-dynarmic.py"
+    "check": "npm run format:check && npm run typecheck && npm test && npm run test:profile && npm run build && npm run audit:public",
+    "dynarmic:build": "python3 scripts/build-dynarmic.py",
+    "profile:firmware": "node scripts/profile-firmware.mjs",
+    "test:profile": "node --test scripts/performance/*.test.mjs",
+    "performance:compare": "node scripts/compare-performance.mjs"
   },
   "engines": {
     "node": ">=24.0.0"

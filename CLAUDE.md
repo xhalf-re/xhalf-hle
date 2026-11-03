@@ -63,3 +63,7 @@ Read `docs/ARCHITECTURE.md` first; `docs/HOOKS.md` is the authoritative inventor
 ### Public/private boundary
 
 `npm run audit:public` fails if tracked files or `dist/` contain DAT/ELF/img/png/snapshot/trace files or SUNP/ELF magic. Keep all firmware, extracted resources, screenshots, traces and test outputs in the ignored `.private/` (and caches in `.cache/`). Public profiles and fixtures may contain only lengths, SHA-256 digests and interoperability metadata — no original instruction bytes or locator patterns. Diagnostics must not export firmware bytes or memory dumps. Public ARM fixtures are assembled only from the project's own `.s` sources.
+
+## Performance work
+
+Read `docs/performance/PROFILING.md` for paired Worker profiling and unprofiled comparisons. Use `npm run profile:firmware` to collect phase-separated profiles and `npm run test:profile` to check the analysis tools. Preserve native IRQ/deadline ordering, guest time and the existing acceptance gates. Record reviewed aggregate results in `docs/BENCHMARK.md`; raw evidence stays in ignored `.private/performance/`. Do not run builds or other emulators concurrently with measurements.
