@@ -7,6 +7,7 @@ test('native screen taps enter an option and native sidebar taps change category
   test.skip(!process.env.XHALF_DAT, 'Real pointer NOT RUN: set XHALF_DAT.');
   test.setTimeout(180000);
   await page.goto('./');
+  await page.locator('#manual-setup').uncheck();
   await page
     .getByLabel('Choose firmware', { exact: true })
     .setInputFiles(process.env.XHALF_DAT!);

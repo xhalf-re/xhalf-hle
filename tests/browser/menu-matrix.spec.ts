@@ -11,6 +11,7 @@ test('native menu matrix uses fixed keys, direct touch and mixed input', async (
     cases: object[] = [];
   mkdirSync(directory, { recursive: true });
   await page.goto('./');
+  await page.locator('#manual-setup').uncheck();
   await page
     .getByLabel('Choose firmware', { exact: true })
     .setInputFiles(process.env.XHALF_DAT!);

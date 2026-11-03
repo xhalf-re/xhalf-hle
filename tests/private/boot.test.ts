@@ -2,8 +2,7 @@ import { test, expect } from 'vitest';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
-import { UnicornBackend } from '../../src/cpu/unicorn';
-import type { UnicornModule } from '../../src/cpu/unicorn';
+import { DynarmicBackend, type DynarmicModule } from '../../src/cpu/dynarmic';
 import { loadBundle } from '../../src/firmware/package';
 import { FirmwareProfile } from '../../src/firmware/profile';
 import { RuntimeCore } from '../../src/runtime/core';
@@ -17,11 +16,11 @@ test.skipIf(!process.env.XHALF_DAT)(
     const bundle = await loadBundle(readFileSync(process.env.XHALF_DAT!)),
       profile = new FirmwareProfile();
     await profile.preflight(bundle);
-    const url = pathToFileURL(resolve('public/runtime/unicorn-arm.js')).href;
+    const url = pathToFileURL(resolve('public/runtime/dynarmic-arm.js')).href;
     const imported = (await import(/* @vite-ignore */ url)) as {
-      default: () => Promise<UnicornModule>;
+      default: () => Promise<DynarmicModule>;
     };
-    const cpu = new UnicornBackend(
+    const cpu = new DynarmicBackend(
         await imported.default(),
         profile.machine.cpu_model,
       ),
@@ -41,8 +40,12 @@ test.skipIf(!process.env.XHALF_DAT)(
         if (performance.now() - last > 200) {
           last = performance.now();
           const metrics = core.diagnostics();
+          if (cpu.executionStats.undefinedInstructions)
+            throw new Error(
+              `Unsupported system instruction at 0x${cpu.executionStats.lastUndefinedPc.toString(16)}`,
+            );
           writeFileSync(
-            '.private/reports/M3-node.json',
+            `.private/reports/M3-node-dynarmic.json`,
             JSON.stringify(metrics, null, 2),
           );
           if (
@@ -58,7 +61,7 @@ test.skipIf(!process.env.XHALF_DAT)(
       expect(ready).toBe(true);
     } catch (error) {
       writeFileSync(
-        '.private/reports/M3-node-error.json',
+        `.private/reports/M3-node-dynarmic-error.json`,
         JSON.stringify(
           {
             error: String(error),

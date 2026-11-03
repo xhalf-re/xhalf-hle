@@ -1,6 +1,6 @@
 # Architecture
 
-The app runs real ARM firmware and ThreadX in a single Web Worker. The main thread selects files, displays Canvas frames and collects input. All CPU execution and synchronous HLE callbacks stay in the Worker. Vite and TypeScript provide the web shell; Unicorn.js supplies the ARM Wasm backend. SharedArrayBuffer, pthreads and a server emulator are not required.
+The app runs real ARM firmware and ThreadX in a single Web Worker. The main thread selects files, displays Canvas frames and collects input. All CPU execution and synchronous HLE callbacks stay in the Worker. Vite and TypeScript provide the web shell; the pinned dynarmic.js source supplies the ARM Wasm JIT. The standalone runtime owns memory mapping, system instructions and exception entry/return. SharedArrayBuffer, pthreads and a server emulator are not required.
 
 ## Runtime boundaries
 
@@ -14,13 +14,13 @@ The app runs real ARM firmware and ThreadX in a single Web Worker. The main thre
 | Host services    | Provide sector-backed virtual disks and graphics operations.                        |
 | Web shell        | Manage sessions, Canvas presentation and browser input.                             |
 
-`CpuBackend` isolates the Unicorn wrapper from the runtime. ARM addresses are unsigned 32-bit values; 64-bit timer and Wasm values use explicit BigInt conversions. Wasm views are refreshed after memory growth. Package sections share their backing storage where possible.
+`CpuBackend` isolates the ARM execution backend from the runtime. The browser worker uses the pinned dynarmic.js adapter. Ordinary instructions run as Dynarmic-compiled Wasm blocks over shared RAM; privileged operations run in the native C++/Wasm CPU implementation. CP15, banked registers, WFI, SVC, undefined-instruction traps, IRQ entry/return, SRS/RFE and LDM exception returns are handled by the Dynarmic CPU implementation. Its page table owns physical RAM, mapping permissions and host transfers. There is no firmware-address dispatch or injected exception trampoline. `jitInstructions` and `systemInstructions` report JIT blocks and native system-boundary work. ARM addresses are unsigned 32-bit values; 64-bit timer and Wasm values use explicit BigInt conversions. Wasm views are refreshed after memory growth. Package sections share their backing storage where possible.
 
 Machine, SDK and firmware profiles are separate. Public bindings use byte lengths and SHA-256 guards instead of firmware instruction fragments or locator patterns. Unknown versions, candidate profiles and mismatched required bindings fail before execution. Optional acceleration groups fall back to ARM when their guards or runtime conditions fail.
 
 ## Memory and assertions
 
-The machine maps 128 MiB of fixed DRAM and declares additional paged DRAM from `0x48000000` to `0x80000000`. `PagedMemory` maps data pages only within that range, preserving the firmware's heap and ThreadX allocation algorithms without allocating a full gigabyte. Unmapped instruction fetches fail. Unclaimed registers inside the mapped MMIO window currently retain backing-memory values; device-owned registers use their explicit models.
+The machine maps 128 MiB of fixed DRAM and declares additional paged DRAM from `0x48000000` to `0x80000000`. `PagedMemory` maps data pages only within that range, preserving the firmware's heap and ThreadX allocation algorithms without allocating a full gigabyte. Unmapped instruction fetches fail. Host reads/writes validate the entire range, bypass guest permissions and never trigger guest hooks. Partial unmapping releases an allocation when its last page is removed; remapping allocates zero-filled pages. Unmapping and protection changes invalidate affected translated code. Unclaimed registers inside the mapped MMIO window currently retain backing-memory values; device-owned registers use their explicit models.
 
 The CPU system-register model supplies the configured single-primary MPIDR identity. Original MPIDR instructions execute without startup patches. Native ASSERTs stop the session and produce diagnostics. The desktop reference's ASSERT/BKPT fallback is deliberately excluded.
 
@@ -66,11 +66,13 @@ Coherent RAM needs no physical data-cache maintenance. Upper ARM layers still va
 
 ## CPU scheduling and lifecycle
 
-The opt-in ARM backend patch implements the external IRQ line with QEMU's `CPU_INTERRUPT_HARD`. Cached and chained TBs sample the line at TB entry; checks inside MMIO hooks cannot interrupt an unfinished register access. QEMU performs exception entry, including CPSR.I/A/T and IT state, banked LR/SP/SPSR, VBAR and SCTLR.V/TE. The runtime has no firmware IRQ-window hook or manual exception entry.
+Dynarmic samples the external IRQ line at translated-block boundaries, after MMIO accesses complete. Its CPU implementation owns exception entry, including CPSR.I/A/T and IT state, banked LR/SP/SPSR, VBAR and SCTLR.V/TE. IRQ entry never passes through the runtime or a firmware-address hook. The privileged model supports the physical-memory board used by this profile; it is not a general MMU, TrustZone or hypervisor implementation.
 
 The GIC is a single-CPU, 256-interrupt model with eight priority bits and no Security Extensions. Distributor and CPU enables, individual enable/pending/active aliases, edge/level configuration, CPU targeting, priorities, PMR and BPR participate in arbitration. Lower numeric priority wins; equal priorities use the lower interrupt ID. IAR acknowledges eligible interrupts, nested running group priorities captured at acknowledge restrict preemption, and ordered EOIR writes release them. Level sources reassert until the device clears them; edge and software pending latches survive masking. Reserved and unimplemented registers read as zero and ignore writes. The [GIC register contract](GIC.md) lists the implemented offsets and access semantics.
 
-`src/cpu/slice.c` uses Unicorn's `UC_HOOK_BLOCK` API to bound execution and advance the board clock in C/Wasm. ARM charges four-byte instructions; Thumb charges by the minimum two-byte width. Completed TBs advance time at the machine's configured two nanoseconds per budget unit. The final TB can cross the budget, and hooks can return early, so these are scheduling estimates rather than exact retired-instruction or cycle counts. `run` retains Unicorn's exact instruction-count interface.
+Compiled-block retention is bounded. A browser code-allocation failure reduces the cache target, releases cold Wasm modules and yields the Worker for collection before retrying the same guest PC. The retained/peak/released block counts and allocation retries appear in diagnostics. This cache is separate from guest RAM and its Wasm linear memory.
+
+`src/cpu/dynarmic-host.cpp` bounds execution at translated-block boundaries and advances board time in C/Wasm. Dynarmic's block cycle counts supply the instruction-budget estimate; the final block may cross a slice budget. Exact `run` requests split blocks at instruction boundaries. The board uses the machine's configured two nanoseconds per budget unit.
 
 The 27 MHz architectural counter advances at TB boundaries through a native observer that runs before IRQ selection. The five generic timer outputs and scheduled peripheral deadlines update the GIC during execution; JavaScript callbacks occur only when a deadline is due or timer levels change. MMIO also synchronizes device time. Timer programming, the counter and the external IRQ line survive CPU-context restoration. Original CP15 and MPIDR instructions run at any ARM/Thumb PC without firmware-address substitutions.
 

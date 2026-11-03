@@ -15,7 +15,10 @@ export default defineConfig({
         : [],
     },
   },
-  projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
+  projects:
+    process.env.XHALF_BROWSER === 'firefox'
+      ? [{ name: 'firefox', use: { browserName: 'firefox' } }]
+      : [{ name: 'chromium', use: { browserName: 'chromium' } }],
   webServer: [
     {
       command: 'npm run preview -- --port 4173',

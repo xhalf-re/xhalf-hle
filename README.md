@@ -18,7 +18,7 @@ Only the official firmware version 2.0 is supported, identified by [the supporte
 
 ## Development
 
-Use Node.js 24 or later. The Wasm build also requires Python 3, CMake 4.0.2, a C compiler, Git, tar and curl.
+Use Node.js 24 or later. The Wasm build also requires Python 3, CMake 4.0.2, a C compiler, Boost headers (`libboost-dev`), Git, tar and curl.
 
 ```sh
 npm ci
@@ -46,4 +46,4 @@ Public tests use synthetic data and independently written ARM fixtures. Real fir
 - [Reproducible Wasm builds](docs/WASM-BUILD.md)
 - [Sources and licenses](docs/LICENSES.md)
 
-Original project code is MIT licensed. The combined Unicorn/Unicorn.js runtime is distributed under its upstream GPL terms, with the required license and corresponding source materials. Firmware, extracted resources and native GUI screenshots are not distributed; the README screenshot shows only the app's own shell before any firmware is loaded.
+Original project code is MIT licensed. The ARM runtime uses [dynarmic.js](https://github.com/xndcn/dynarmic.js) under MIT, with the original Dynarmic and bundled dependency licenses included in the build. Firmware, extracted resources and native GUI screenshots are not distributed; the README screenshot shows only the app's own shell before any firmware is loaded.

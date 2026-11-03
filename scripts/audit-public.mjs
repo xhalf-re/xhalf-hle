@@ -29,6 +29,32 @@ try {
 } catch (error) {
   if (error.code !== 'ENOENT') throw error;
 }
+// A historical binary in public/runtime would otherwise be silently published.
+for (const root of ['public/runtime', 'dist/runtime']) {
+  if (!existsSync(root)) continue;
+  const walk = (dir) => {
+    for (const name of readdirSync(dir)) {
+      const file = join(dir, name);
+      if (/unicorn/i.test(name)) failures.push(file);
+      if (statSync(file).isDirectory()) walk(file);
+    }
+  };
+  walk(root);
+  const manifest = join(root, 'dynarmic-build.json');
+  if (!existsSync(manifest)) {
+    failures.push(`${root}: missing runtime identity`);
+    continue;
+  }
+  const build = JSON.parse(readFileSync(manifest, 'utf8'));
+  if (build.backend !== 'dynarmic' || /unicorn/i.test(JSON.stringify(build)))
+    failures.push(`${root}: retired runtime dependency`);
+  const symbols = join(root, 'dynarmic-arm.js.symbols');
+  if (
+    !existsSync(symbols) ||
+    /(?:^\d+:uc_|unicorn|qemu|tcg_)/im.test(readFileSync(symbols, 'utf8'))
+  )
+    failures.push(`${root}: missing symbols or retired engine symbols`);
+}
 if (failures.length) {
   console.error('Public boundary audit failed:', [...new Set(failures)]);
   process.exit(1);

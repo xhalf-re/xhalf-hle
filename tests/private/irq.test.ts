@@ -1,8 +1,9 @@
+import { runtimePath } from './cpu-backend';
 import { expect, test } from 'vitest';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
-import { UnicornBackend, type UnicornModule } from '../../src/cpu/unicorn';
+import { TestBackend, type TestModule } from './cpu-backend';
 import { loadBundle } from '../../src/firmware/package';
 import { FirmwareProfile } from '../../src/firmware/profile';
 import { RuntimeCore } from '../../src/runtime/core';
@@ -21,10 +22,9 @@ test.skipIf(!process.env.XHALF_DAT)(
       profile = new FirmwareProfile();
     await profile.preflight(bundle);
     const { default: create } = (await import(
-      /* @vite-ignore */ pathToFileURL(resolve('public/runtime/unicorn-arm.js'))
-        .href
-    )) as { default: () => Promise<UnicornModule> };
-    const cpu = new UnicornBackend(await create(), profile.machine.cpu_model),
+      /* @vite-ignore */ pathToFileURL(resolve(runtimePath)).href
+    )) as { default: () => Promise<TestModule> };
+    const cpu = new TestBackend(await create(), profile.machine.cpu_model),
       core = new RuntimeCore(cpu, profile, bundle);
     new SdkServices(core);
     new SdkGraphics(core);

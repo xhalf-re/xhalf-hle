@@ -11,6 +11,32 @@ export function memoryRange(address: number, size: number): void {
     throw new RangeError('ARM32 memory range out of bounds');
 }
 
+/** Stable error numbers shared with the native CPU ABI. */
+const errorMessages: Record<number, string> = {
+  1: 'Out of memory',
+  6: 'Unmapped read',
+  7: 'Unmapped write',
+  8: 'Unmapped instruction fetch',
+  10: 'Invalid instruction',
+  11: 'Invalid memory mapping',
+  12: 'Write protection',
+  13: 'Read protection',
+  14: 'Execute protection',
+  15: 'Invalid argument',
+};
+export class CpuError extends Error {
+  constructor(
+    public readonly operation: string,
+    public readonly code: number,
+    description = errorMessages[code] ?? 'CPU error',
+  ) {
+    super(`${operation}: ${description} (${code})`);
+    this.name = 'CpuError';
+  }
+}
+/** Vector names use the ARM register width, independent of a library's enum. */
+export type FpRegister = `s${number}` | `d${number}` | `q${number}`;
+
 export type ArmRegister =
   | `r${0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12}`
   | 'sp'
@@ -60,8 +86,8 @@ export interface CpuBackend {
   readRegisters(registers: readonly ArmRegister[]): number[];
   writeRegister(register: ArmRegister, value: number): void;
   writeRegisters(values: readonly (readonly [ArmRegister, number])[]): void;
-  readRegisterBytes(id: number, size: number): Uint8Array;
-  writeRegisterBytes(id: number, bytes: Uint8Array): void;
+  readRegisterBytes(id: FpRegister, size: number): Uint8Array;
+  writeRegisterBytes(id: FpRegister, bytes: Uint8Array): void;
   hook(
     kind: HookKind,
     callback: HookCallback,
@@ -79,4 +105,8 @@ export interface CpuBackend {
   invalidateCode(begin: number, end: number): void;
   destroy(): void;
   readonly memoryBytes: number;
+  readonly executionStats?: {
+    jitInstructions: number;
+    systemInstructions: number;
+  };
 }

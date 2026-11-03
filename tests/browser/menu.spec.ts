@@ -21,6 +21,7 @@ test('cold boot automatically reaches native main menu and keyboard changes nati
   );
   test.setTimeout(180000);
   await page.goto('./');
+  await page.locator('#manual-setup').uncheck();
   await page
     .getByLabel('Choose firmware', { exact: true })
     .setInputFiles(process.env.XHALF_DAT!);

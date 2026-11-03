@@ -2,8 +2,8 @@ import { test, expect } from 'vitest';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
-import { UnicornBackend } from '../../src/cpu/unicorn';
-import type { UnicornModule } from '../../src/cpu/unicorn';
+import { DynarmicBackend } from '../../src/cpu/dynarmic';
+import type { DynarmicModule } from '../../src/cpu/dynarmic';
 import { loadBundle } from '../../src/firmware/package';
 import { FirmwareProfile } from '../../src/firmware/profile';
 import { RuntimeCore } from '../../src/runtime/core';
@@ -23,10 +23,11 @@ test.skipIf(!process.env.XHALF_DAT || !process.env.XHALF_CATALOG)(
       profile = new FirmwareProfile();
     await profile.preflight(bundle);
     const imported = (await import(
-      /* @vite-ignore */ pathToFileURL(resolve('public/runtime/unicorn-arm.js'))
-        .href
-    )) as { default: () => Promise<UnicornModule> };
-    const cpu = new UnicornBackend(
+      /* @vite-ignore */ pathToFileURL(
+        resolve('public/runtime/dynarmic-arm.js'),
+      ).href
+    )) as { default: () => Promise<DynarmicModule> };
+    const cpu = new DynarmicBackend(
         await imported.default(),
         profile.machine.cpu_model,
       ),

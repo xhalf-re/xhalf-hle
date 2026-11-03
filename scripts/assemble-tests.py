@@ -10,7 +10,7 @@ cache = root / '.cache/arm-tests'
 cache.mkdir(parents=True, exist_ok=True)
 subprocess.run(['clang-15', '--target=armv7-none-eabi', '-c', root / 'tests/arm/contracts.s', '-o', cache / 'contracts.o'], check=True)
 programs = {}
-for name in ['registers', 'memory', 'jump', 'loop', 'svc', 'invalid', 'irq', 'banked', 'helper_stress', 'call', 'thunk', 'wait', 'thumb_wait', 'system_registers', 'thumb_system_registers', 'timer_write', 'timer_read', 'timer_control', 'timer_tval', 'virtual_timer', 'irq_setup', 'irq_source', 'thumb_irq_source', 'irq_handler', 'thumb_irq_handler', 'irq_unmask', 'gic_handler']:
+for name in ['privileged_modes', 'thumb_privileged', 'rfe_ia', 'srs_db', 'ldm_return', 'user_bank_store', 'user_bank_load', 'movs_return', 'banked_saved', 'thumb_svc', 'rrx_flags', 'registers', 'memory', 'jump', 'loop', 'svc', 'invalid', 'irq', 'banked', 'helper_stress', 'call', 'thunk', 'wait', 'thumb_wait', 'system_registers', 'thumb_system_registers', 'timer_write', 'timer_read', 'timer_control', 'timer_tval', 'virtual_timer', 'irq_setup', 'irq_source', 'thumb_irq_source', 'irq_handler', 'thumb_irq_handler', 'irq_unmask', 'gic_handler']:
     target = cache / (name + '.bin')
     subprocess.run(['llvm-objcopy-15', '-O', 'binary', '--only-section=.text.' + name, cache / 'contracts.o', target], check=True)
     programs[name] = list(target.read_bytes())

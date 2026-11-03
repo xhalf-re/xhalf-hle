@@ -1,0 +1,103 @@
+diff --git a/src/dynarmic/backend/wasm/address_space.cpp b/src/dynarmic/backend/wasm/address_space.cpp
+--- a/src/dynarmic/backend/wasm/address_space.cpp
++++ b/src/dynarmic/backend/wasm/address_space.cpp
+@@ -86,6 +86,11 @@ BlockFunc AddressSpace::GetOrEmit(IR::LocationDescriptor descriptor) {
+     }
+     std::vector<u64> fallback_aliases;
+     auto entry = Emit(std::move(blocks), entry_index, std::move(live_region_ids), fallback_aliases);
++    if (!entry) {
++        cache_capacity = 12288;
++        TrimCache();
++        return nullptr;
++    }
+     entry->range = range;
+     entry->last_used = ++use_serial;
+     return Publish(std::move(entry), descriptor, fallback_aliases);
+@@ -315,7 +323,7 @@ std::shared_ptr<AddressSpace::BlockEntry> AddressSpace::Emit(std::vector<IR::Blo
+     DYNARMIC_WASM_PROFILE_ADD(profiler, emitted_bytes, block_info.module_bytes.size());
+     RecordCompilePhase<CompilePhase::Emit>(compile_stats, CompileStatsNowMs() - t_emit);
+     const BlockFunc entry = InstantiateBlock(block_info.module_bytes.data(), block_info.module_bytes.size(), compile_stats);
+-    ASSERT(entry != nullptr);
++    if (!entry) return {};
+     std::shared_ptr<BlockEntry> result;
+     try {
+         result = std::make_shared<BlockEntry>();
+diff --git a/src/dynarmic/backend/wasm/core.h b/src/dynarmic/backend/wasm/core.h
+--- a/src/dynarmic/backend/wasm/core.h
++++ b/src/dynarmic/backend/wasm/core.h
+@@ -86,6 +86,7 @@ public:
+             ectx.cycles_remaining = ectx.cycles_to_run;
+         }
+         const BlockFunc entry_point = process.GetOrEmit(step_location);
++        if (!entry_point) return HaltReason::UserDefined8;
+         entry_point(reinterpret_cast<uptr>(&thread_ctx), reinterpret_cast<uptr>(&ectx));
+         ectx.link_slot_addr = 0;
+         ectx.fast_dispatch_entry = 0;
+diff --git a/src/dynarmic/backend/wasm/wasm_runtime_emscripten.cpp b/src/dynarmic/backend/wasm/wasm_runtime_emscripten.cpp
+--- a/src/dynarmic/backend/wasm/wasm_runtime_emscripten.cpp
++++ b/src/dynarmic/backend/wasm/wasm_runtime_emscripten.cpp
+@@ -63,16 +63,27 @@ EM_JS(uptr, js_instantiate_block, (const u8* bytes, u32 size, u8* stats_ptr), {
+         Module.dynarmicDumpCount = (Module.dynarmicDumpCount || 0) + 1;
+         require('fs').writeFileSync(process.env.DYN_DUMP_DIR + '/block_' + Module.dynarmicDumpCount + '.wasm', code);
+     }
+-    const t0 = performance.now();
+-    const mod = new WebAssembly.Module(code);
+-    const t1 = performance.now();
+-    const inst = new WebAssembly.Instance(mod, imports);
+-    const t2 = performance.now();
+-    const entry = inst.exports.f;
+-    const fn = getEmptyTableSlot();
+-    setWasmTableEntry(fn, entry);
+-    if (functionsInTableMap) functionsInTableMap.set(entry, fn);
+-    const t3 = performance.now();
++    let compiled;
++    const stats = Module.dynarmicWasmStats || (Module.dynarmicWasmStats = {});
++    if (stats && (stats.compileFailed || stats.retryAfter > performance.now())) return 0;
++    try {
++        compiled = Module.xhleCompileBlock(code, imports);
++    } catch (error) {
++        if (!/out of memory|allocate.*memory/i.test(String(error))) throw error;
++        const st = Module.dynarmicWasmStats;
++        st.cacheCapacity = 12288;
++        st.retryStarted = st.retryStarted || performance.now();
++        if (performance.now() - st.retryStarted >= 5000) st.compileFailed = 1;
++        st.compileRetries = (st.compileRetries || 0) + 1;
++        st.retryAfter = performance.now() + 50;
++        st.retryPending = 1;
++        return 0;
++    }
++    if (stats) { stats.retryPending = 0; stats.retryStarted = 0; }
++    const fn = compiled.fn;
++    stats.liveBlocks = (stats.liveBlocks || 0) + 1;
++    stats.peakLiveBlocks = Math.max(stats.peakLiveBlocks || 0, stats.liveBlocks);
++    stats.cacheCapacity = stats.cacheCapacity || 65536;
+     // Compile accounting is written to the owning Jit's POD snapshot. The
+     // snapshot is published after Run/Step, so another live Jit cannot mix
+     // its counters into this one.
+@@ -80,17 +91,20 @@ EM_JS(uptr, js_instantiate_block, (const u8* bytes, u32 size, u8* stats_ptr), {
+         const stats = stats_ptr >> 3;
+         HEAPF64[stats + 0] += 1;
+         HEAPF64[stats + 1] += code.length;
+-        HEAPF64[stats + 5] += t1 - t0;
+-        HEAPF64[stats + 6] += t2 - t1;
+-        HEAPF64[stats + 7] += t3 - t2;
++        HEAPF64[stats + 5] += compiled.compileMs;
++        HEAPF64[stats + 6] += compiled.instMs;
++        HEAPF64[stats + 7] += compiled.tableMs;
+     }
+     return fn;
+ });
+
+ EM_JS(void, js_release_block, (uptr fn), {
+-    if (functionsInTableMap) functionsInTableMap.delete(getWasmTableEntry(fn));
+-    setWasmTableEntry(fn, null);
+-    freeTableIndexes.push(fn);
++    Module.xhleReleaseBlock(fn);
++    const st = Module.dynarmicWasmStats;
++    if (st) {
++        st.liveBlocks--;
++        st.releasedBlocks = (st.releasedBlocks || 0) + 1;
++    }
+ });
+
+ BlockFunc InstantiateBlock(const u8* bytes, size_t size, CompileStats* stats) {

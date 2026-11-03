@@ -23,6 +23,7 @@ test('slow frame acknowledgements preserve native display completion and respons
     } as typeof original;
   });
   await page.goto('./');
+  await page.locator('#manual-setup').uncheck();
   await page
     .getByLabel('Choose firmware', { exact: true })
     .setInputFiles(process.env.XHALF_DAT!);

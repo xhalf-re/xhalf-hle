@@ -4,7 +4,7 @@ import { loadBundle } from '../firmware/package';
 import type { FirmwareBundle } from '../firmware/package';
 import { FirmwareProfile } from '../firmware/profile';
 import type { Command, WorkerEvent } from './protocol';
-import { createUnicornBackend } from '../cpu/unicorn';
+import { createDynarmicBackend } from '../cpu/dynarmic';
 import { RuntimeCore } from '../runtime/core';
 import { SdkServices } from '../sdk/services';
 import { GuestCalls } from '../sdk/guest';
@@ -69,7 +69,7 @@ async function startRuntime(
   const current = generation;
   state = 'starting';
   send({ type: 'state', state: 'starting', request, session });
-  const cpu = await createUnicornBackend(profile.machine.cpu_model);
+  const cpu = await createDynarmicBackend();
   if (current !== generation) {
     cpu.destroy();
     return;
@@ -111,6 +111,7 @@ async function startRuntime(
           if (ahead > 10) return Math.min(ahead - 10, 20);
         }
         core!.step();
+        if (cpu.executionStats.jitRetryPending) return 50;
         const inputAfterStep =
           !!input && (input.pending.length > 0 || input.touch.busy);
         if (inputBurst && !inputAfterStep && epoch)

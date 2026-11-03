@@ -1,10 +1,10 @@
 /// <reference lib="webworker" />
-import { createUnicornBackend } from '../../src/cpu/unicorn';
+import { createDynarmicBackend } from '../../src/cpu/dynarmic';
 import { CooperativeRunner } from '../../src/runtime/cooperative';
 import programs from '../arm/programs.json';
 
 const worker = self as unknown as DedicatedWorkerGlobalScope;
-const cpu = await createUnicornBackend();
+const cpu = await createDynarmicBackend();
 cpu.map(0x40000000, 4096);
 cpu.write(0x40000000, Uint8Array.from(programs.loop));
 const runner = new CooperativeRunner(

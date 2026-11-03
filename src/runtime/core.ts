@@ -435,6 +435,7 @@ export class RuntimeCore {
       optionScroll: this.sdk.word('ui.option_scroll') | 0,
       category: menu?.category ?? 0,
       wasmBytes: this.cpu.memoryBytes,
+      ...this.cpu.executionStats,
       currentThread: this.sdk.word('tx.current_thread'),
       systemState: this.sdk.word('tx.system_state'),
       sensorFrames: this.frontend.frames,
