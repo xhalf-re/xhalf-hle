@@ -72,3 +72,28 @@ test('Worker yields for commands and remains responsive after faults', async ({
   expect(result.resumed).toBe(true);
   expect(result.elapsed).toBeLessThan(3000);
 });
+
+test('JIT code cache releases modules and resumes after allocation pressure', async ({
+  page,
+}) => {
+  test.setTimeout(120000);
+  await page.goto('http://127.0.0.1:5173/xhalf-hle/tests/harness/cpu.html');
+  const result = await page.evaluate(async () =>
+    (
+      window as unknown as {
+        jitCacheContract(): Promise<Record<string, number | boolean>>;
+      }
+    ).jitCacheContract(),
+  );
+  expect(result.result).toBe(70000);
+  expect(result.afterRecompile).toBe(70001);
+  expect(result.recompiled).toBe(true);
+  expect(result.jitReleasedBlocks).toBeGreaterThan(0);
+  expect(result.jitPackedModules).toBeGreaterThan(0);
+  expect(Number(result.jitLiveModules)).toBeLessThan(
+    Number(result.jitLiveBlocks),
+  );
+  expect(Number(result.jitLiveBlocks)).toBeLessThanOrEqual(
+    Number(result.jitCacheCapacity),
+  );
+});

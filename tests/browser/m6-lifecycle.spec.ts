@@ -12,6 +12,7 @@ test('M6 repeated load/stop releases browser sessions', async ({ browser }) => {
       const page = await context.newPage(),
         started = Date.now();
       await page.goto('./');
+      await page.locator('#manual-setup').uncheck();
       await page
         .getByLabel('Choose firmware', { exact: true })
         .setInputFiles(process.env.XHALF_DAT!);

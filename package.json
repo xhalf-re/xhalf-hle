@@ -18,7 +18,8 @@
     "test:e2e": "playwright test",
     "test:performance": "npm run build && playwright test tests/browser/m6-performance.spec.ts",
     "audit:public": "node scripts/audit-public.mjs",
-    "check": "npm run format:check && npm run typecheck && npm test && npm run build && npm run audit:public"
+    "check": "npm run format:check && npm run typecheck && npm test && npm run build && npm run audit:public",
+    "dynarmic:build": "python3 scripts/build-dynarmic.py"
   },
   "engines": {
     "node": ">=24.0.0"

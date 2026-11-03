@@ -12,6 +12,18 @@ XHALF_DAT=./.private/FPUPDATE.DAT npm run test:performance
 
 This command rebuilds the web app and tests the production preview. It does not rebuild Wasm; run `npm run wasm:build` first after changing C sources or build flags. Do not modify runtime artifacts during a measurement.
 
+## Dynarmic integration validation
+
+The runtime uses the public dynarmic.js revision pinned in
+`scripts/dynarmic-source.json`; see [Wasm builds](WASM-BUILD.md).
+The integration baseline observes every translated block for hooks, IRQs and
+virtual time. It passed a clean Wasm build, `npm run check` (69 unit tests),
+ARM fixture verification, 14 synthetic CPU cases, five real-firmware
+boot/input/IRQ/display/storage regressions and Chromium CPU/Worker/cache tests.
+
+The following measurements predate this backend migration and describe their
+recorded builds, rather than the current runtime.
+
 ## Recorded measurements
 
 Measured on 2026-10-18 with the native block-budget backend and MessageChannel scheduling:

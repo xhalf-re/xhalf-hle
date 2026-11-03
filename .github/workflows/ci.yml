@@ -16,10 +16,12 @@ jobs:
         with:
           python-version: '3.10.12'
       - run: python3 -m pip install cmake==4.0.2
-      - run: sudo apt-get update && sudo apt-get install -y clang-15 llvm-15
+      - run: sudo apt-get update && sudo apt-get install -y clang-15 llvm-15 libboost-dev
       - run: python3 scripts/assemble-tests.py --check
-      - run: python3 scripts/build-wasm.py
+      - run: npm run wasm:build
       - run: npm run check
-      - run: npx playwright install --with-deps chromium
+      - run: npm run test:private -- tests/private/dynarmic-contracts.test.ts
+      - run: npx playwright install --with-deps chromium firefox
       - run: npm run test:e2e
+      - run: XHALF_BROWSER=firefox npx playwright test tests/browser/cpu.spec.ts
       - run: echo 'Real firmware tests NOT RUN in public CI; private firmware verification is required.' >> "$GITHUB_STEP_SUMMARY"

@@ -64,3 +64,17 @@ After rebuilding Wasm, `tests/private/irq.test.ts` cold boots the firmware with 
 The synthetic CPU contracts independently cover ARM/Thumb IRQ entry and return, relocated VBAR, high vectors, SCTLR.TE, CPSR.I and guest CPSIE, native IAR/EOIR, deadlines within a long host slice, WFI wakeup and device state across CPU-context restoration. Unit tests cover GIC reset, priorities, PMR/BPR, nesting, edge/level and software pending/active semantics. Real firmware regressions remain separate.
 
 The native power cases allow ten minutes of Node/Wasm wall time per case to execute their original 120/140-second virtual scenarios with native ISR delivery. This is a functional-test execution limit. Browser performance uses the 120-second cold-boot and 300-ms navigation P95 gates in [benchmark methodology](BENCHMARK.md).
+
+## Dynarmic acceptance
+
+The production Worker, browser contracts and all private CPU tests use the standalone Dynarmic runtime. No alternate backend or environment selector is required.
+
+```sh
+npm run test:private -- tests/private/dynarmic-contracts.test.ts
+XHALF_DAT=./.private/FPUPDATE.DAT npm run test:private -- tests/private/native-input.test.ts
+XHALF_DAT=./.private/FPUPDATE.DAT npm run test:performance
+```
+
+The synthetic suite includes all shared CPU contracts, system-register and IRQ contracts, RRX flags, and accesses across separately allocated pages. The browser performance report records the Dynarmic artifact hashes and JIT/system execution counters. System instructions, exceptions and memory management run entirely in Dynarmic. The verified privileged-state fixture contains only results of the project’s synthetic assembly programs. Private reports require `undefinedInstructions: 0`; build metadata and symbol audits verify the standalone runtime.
+
+For Firefox regressions install its Playwright runtime with `npx playwright install firefox`, then use `XHALF_BROWSER=firefox`. The browser CPU suite includes a 70,000-block cache-pressure case with eviction and recompilation. The Node CPU suite injects transient and persistent executable-memory failures to check same-PC resumption and bounded retries. Chromium remains the default performance acceptance browser; report Firefox timing separately.

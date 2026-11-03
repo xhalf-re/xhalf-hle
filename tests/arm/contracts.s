@@ -175,3 +175,52 @@ ldr r2,[r4,#0xc]
 add r8,r8,#1
 str r2,[r4,#0x10]
 subs pc,lr,#4
+
+.section .text.rrx_flags,"ax"
+.arm
+// RRX has two IR operands (value and carry), no shift amount operand.
+movs r0,r1,rrx
+mrs r2,cpsr
+
+.section .text.privileged_modes,"ax"
+.arm
+cps #0x11
+mov r8,#81
+mov sp,r0
+msr spsr_fsxc,r1
+cps #0x13
+mrs r2,cpsr
+cps #0x11
+mrs r3,spsr
+cps #0x13
+
+.section .text.thumb_privileged,"ax"
+.thumb
+cpsid if
+cpsie i
+msr spsr_fsxc,r0
+mrs r1,spsr
+msr cpsr_c,r2
+mrs r3,cpsr
+.arm
+
+.section .text.rfe_ia,"ax"
+rfeia r0!
+.section .text.srs_db,"ax"
+srsdb sp!,#0x13
+.section .text.ldm_return,"ax"
+ldmia sp!,{r0,pc}^
+.section .text.user_bank_store,"ax"
+stmia r0,{r8-r14}^
+.section .text.user_bank_load,"ax"
+ldmia r0,{r8-r14}^
+.section .text.movs_return,"ax"
+movs pc,lr
+.section .text.banked_saved,"ax"
+msr spsr_irq,r0
+mrs r1,spsr_irq
+.section .text.thumb_svc,"ax"
+.thumb
+svc #0
+movs r0,#9
+.arm

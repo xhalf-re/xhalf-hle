@@ -1,12 +1,17 @@
-import { createUnicornBackend } from '../../src/cpu/unicorn';
+import { createDynarmicBackend } from '../../src/cpu/dynarmic';
+import type { CpuBackend } from '../../src/cpu/backend';
 import { Gic } from '../../src/runtime/gic';
 import programs from '../arm/programs.json';
 
-export async function irqContracts(): Promise<{
+export async function irqContracts(
+  create: () => Promise<
+    CpuBackend & Required<Pick<CpuBackend, 'runSlice'>>
+  > = createDynarmicBackend,
+): Promise<{
   passed: string[];
   timing: object;
 }> {
-  const cpu = await createUnicornBackend(),
+  const cpu = await create(),
     base = 0x42000000,
     source = 0x60001000;
   const passed: string[] = [];

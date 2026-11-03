@@ -1,4 +1,5 @@
-import { createUnicornBackend, CpuError } from '../../src/cpu/unicorn';
+import { CpuError } from '../../src/cpu/backend';
+import { createDynarmicBackend } from '../../src/cpu/dynarmic';
 import type { CpuBackend, ArmRegister } from '../../src/cpu/backend';
 import { PagedMemory } from '../../src/cpu/paged-memory';
 import programs from '../arm/programs.json';
@@ -24,11 +25,15 @@ function word(value: number): Uint8Array {
   new DataView(bytes.buffer).setUint32(0, value, true);
   return bytes;
 }
-export async function runContracts(): Promise<{
+export async function runContracts(
+  create: () => Promise<
+    CpuBackend & Required<Pick<CpuBackend, 'runSlice'>>
+  > = createDynarmicBackend,
+): Promise<{
   passed: string[];
   benchmark: object;
 }> {
-  const cpu = await createUnicornBackend();
+  const cpu = await create();
   const passed: string[] = [];
   try {
     cpu.map(base, 0x10000);
@@ -150,9 +155,9 @@ export async function runContracts(): Promise<{
     const double = Uint8Array.from([
       0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe,
     ]);
-    cpu.writeRegisterBytes(14, double); // pinned ARM_REG_D0
+    cpu.writeRegisterBytes('d0', double);
     equal(
-      Array.from(cpu.readRegisterBytes(14, 8)),
+      Array.from(cpu.readRegisterBytes('d0', 8)),
       Array.from(double),
       '64-bit VFP register',
     );
@@ -515,7 +520,7 @@ export async function runContracts(): Promise<{
     cpu.writeRegister('cpsr', cpu.readRegister('cpsr') & ~0x20);
     passed.push('thumb-block-slices');
     passed.push(...systemRegisterContracts(cpu, base + 0x4000));
-    const irq = await irqContracts();
+    const irq = await irqContracts(create);
     passed.push(...irq.passed);
     load(cpu, 'loop');
     cpu.writeRegister('r0', 0);

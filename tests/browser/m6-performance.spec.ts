@@ -13,19 +13,31 @@ async function metrics(page: Page): Promise<Metrics> {
     return JSON.parse(
       (await page.locator('#diagnostics').textContent())!,
     ) as Metrics;
-  } catch {
-    return {};
+  } catch (error) {
+    return { diagnosticError: String(error) };
   }
 }
 
 async function boot(page: Page, timeout = 120000): Promise<number> {
+  page.on('crash', () => console.log('Performance page crashed'));
   await page.goto('./');
+  await page.locator('#manual-setup').uncheck();
   const started = Date.now();
   await page
     .getByLabel('Choose firmware', { exact: true })
     .setInputFiles(process.env.XHALF_DAT!);
   await expect
-    .poll(async () => (await metrics(page)).menuReady, { timeout })
+    .poll(
+      async () => {
+        const state = await metrics(page);
+        writeFileSync(
+          '.private/reports/M6-boot-progress.json',
+          JSON.stringify({ elapsedMs: Date.now() - started, state }, null, 2),
+        );
+        return state.menuReady;
+      },
+      { timeout },
+    )
     .toBe(true);
   const result = await metrics(page);
   expect(result.assertions).toBe(0);
@@ -52,10 +64,15 @@ test('M6 cold boot and 100 native navigation samples', async ({ browser }) => {
         page = await context.newPage();
       }
       coldMs.push(await boot(page));
+      console.log(`Dynarmic cold boot ${i + 1}: ${coldMs.at(-1)} ms`);
     }
     const runtimeBuild = await (
-      await page.request.get(new URL('runtime/build.json', page.url()).href)
+      await page.request.get(
+        new URL('runtime/dynarmic-build.json', page.url()).href,
+      )
     ).json();
+    expect(runtimeBuild.backend).toBe('dynarmic');
+    expect(runtimeBuild.dependencies).not.toContain('unicorn');
     await page.locator('canvas').focus();
     const navigationMs: number[] = [];
     const sampleCount = Number(process.env.XHALF_M6_SAMPLES ?? 100);
@@ -134,6 +151,12 @@ test('M6 cold boot and 100 native navigation samples', async ({ browser }) => {
     expect(p95).toBeLessThanOrEqual(300);
     expect(report.final.assertions).toBe(0);
     expect(report.final.inputErrors).toBe(0);
+    expect(report.final.storageErrors).toBe(0);
+    expect(report.final.undefinedInstructions).toBe(0);
+    expect(Number(report.final.irqEntries)).toBeGreaterThan(0);
+    expect(Number(report.final.jitInstructions)).toBeGreaterThan(
+      Number(report.final.systemInstructions),
+    );
   } finally {
     await context.close();
   }

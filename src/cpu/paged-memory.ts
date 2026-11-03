@@ -1,5 +1,6 @@
 import type {
   ArmRegister,
+  FpRegister,
   CpuBackend,
   CpuContext,
   HookCallback,
@@ -62,8 +63,8 @@ export class PagedMemory implements CpuBackend {
           page += 4096;
         } while (page < end && !this.pages.has(page));
         // A framebuffer DMA often touches hundreds of adjacent pages. Mapping
-        // each page separately makes Unicorn rebuild its region index for every
-        // 4 KiB and slows later memory accesses as the region list grows.
+        // each page separately adds allocation and mapping overhead for every
+        // 4 KiB. Coalesce each contiguous missing span into one allocation.
         this.backend.map(first, page - first);
         for (let mapped = first; mapped < page; mapped += 4096)
           this.pages.add(mapped);
@@ -102,10 +103,10 @@ export class PagedMemory implements CpuBackend {
   writeRegister(register: ArmRegister, value: number): void {
     this.backend.writeRegister(register, value);
   }
-  readRegisterBytes(id: number, size: number): Uint8Array {
+  readRegisterBytes(id: FpRegister, size: number): Uint8Array {
     return this.backend.readRegisterBytes(id, size);
   }
-  writeRegisterBytes(id: number, bytes: Uint8Array): void {
+  writeRegisterBytes(id: FpRegister, bytes: Uint8Array): void {
     this.backend.writeRegisterBytes(id, bytes);
   }
   hook(
@@ -145,6 +146,9 @@ export class PagedMemory implements CpuBackend {
   destroy(): void {
     this.backend.destroy();
     this.pages.clear();
+  }
+  get executionStats() {
+    return this.backend.executionStats;
   }
   get memoryBytes(): number {
     return this.backend.memoryBytes;

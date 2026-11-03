@@ -104,7 +104,7 @@ Acceleration resume addresses are not extra hooks. Pixel fast paths validate ins
 | Guest-call return       | 1     | Scratch address `0x3f10ff00`; restore interrupted CPU context.                                                |
 | GFX submission observer | 1     | Observe `gfx.context + active_buffer`, currently `0x40d751c4–0x40d751c7`; sample after the CPU slice returns. |
 
-System counter, CVAL/TVAL and control accesses execute through Unicorn's architectural CP15 handlers at any ARM/Thumb instruction address. The externally clocked timer model supplies ISTATUS and level outputs; machine configuration routes them to the GIC. No counter/compare PC hooks or MPIDR instruction patches remain. MPIDR is a machine-configured CPU identity. Guest-call dispatch now uses only the native idle boundary.
+System counter, CVAL/TVAL and control accesses execute through Dynarmic's architectural CP15 handlers at any ARM/Thumb instruction address. The externally clocked timer model supplies ISTATUS and level outputs; machine configuration routes them to the GIC. No counter/compare PC hooks or MPIDR instruction patches remain. MPIDR is a machine-configured CPU identity. Guest-call dispatch now uses only the native idle boundary.
 
 Retired timer/compare dispatch and display completion bindings are removed from the production profile, together with the unused display event group and IRQ-handler table. Unused ThreadX queue-send, touch-signal and drawing-observer bindings are also removed; the migrator discards desktop `observe.*` metadata. The idle entry retains its guarded `runtime.idle` symbol; no duplicate boot PC/guard table remains. Display completion observation is configured only by the hardware test fixture.
 
