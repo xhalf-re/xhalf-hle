@@ -6,7 +6,7 @@ const tracked = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' })
   .split('\0')
   .filter((name) => name && existsSync(name));
 const forbidden =
-  /(?:^|\/)(?:\.private|artifacts|test-results|playwright-report)\/|\.(?:dat|elf|img|snap|ppm|png|trace)$/i;
+  /(?:^|\/)(?:\.private|artifacts|test-results|playwright-report)\/|\.(?:dat|elf|img|snap|ppm|png|trace|cpuprofile)$/i;
 const failures = tracked.filter((name) => forbidden.test(name));
 function inspect(path) {
   const stat = statSync(path);

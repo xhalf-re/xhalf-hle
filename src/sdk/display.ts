@@ -5,6 +5,26 @@ export interface FrameDescription {
   height: number;
   format: 'abgr8888' | 'rgb565';
 }
+/** Lazily built rgb565 → RGBA expansion table (opaque alpha). */
+let rgb565Table: Uint32Array | undefined;
+function rgb565Lut(): Uint32Array {
+  if (rgb565Table) return rgb565Table;
+  rgb565Table = new Uint32Array(65536);
+  for (let v = 0; v < 65536; v++) {
+    const r = (v >>> 11) & 31,
+      g = (v >>> 5) & 63,
+      b = v & 31;
+    // Little-endian RGBA bytes.
+    rgb565Table[v] =
+      (r << 3) |
+      (r >>> 2) |
+      (((g << 2) | (g >>> 4)) << 8) |
+      (((b << 3) | (b >>> 2)) << 16) |
+      0xff000000;
+  }
+  return rgb565Table;
+}
+
 export function convertFrame(
   raw: Uint8Array,
   width: number,
@@ -26,45 +46,58 @@ export function convertFrame(
     h = turn % 2 ? width : height;
   const pixels =
       output?.byteLength === w * h * 4 ? output : new ArrayBuffer(w * h * 4),
-    bytes = new Uint8Array(pixels),
-    view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-  for (let y = 0; y < height; y++)
-    for (let x = 0; x < width; x++) {
-      const dx =
-        turn === 1
-          ? y
-          : turn === 2
-            ? width - 1 - x
-            : turn === 3
-              ? height - 1 - y
-              : x;
-      const dy =
-          turn === 1
-            ? width - 1 - x
-            : turn === 2
-              ? height - 1 - y
-              : turn === 3
-                ? x
-                : y,
-        to = (dy * w + dx) * 4,
-        from = (y * width + x) * (format === 'rgb565' ? 2 : 4);
-      if (format === 'abgr8888') {
-        bytes[to] = raw[from + 3]!;
-        bytes[to + 1] = raw[from + 2]!;
-        bytes[to + 2] = raw[from + 1]!;
-        bytes[to + 3] = raw[from]!;
-      } else {
-        const v = view.getUint16(from, true),
-          r = (v >>> 11) & 31,
-          g = (v >>> 5) & 63,
-          b = v & 31;
-        bytes[to] = (r << 3) | (r >>> 2);
-        bytes[to + 1] = (g << 2) | (g >>> 4);
-        bytes[to + 2] = (b << 3) | (b >>> 2);
-        bytes[to + 3] = 255;
-      }
-    }
+    out = new Uint32Array(pixels);
+  // cpu.read returns a fresh aligned buffer; view the source as machine words
+  // and convert one whole pixel per iteration instead of per byte.
+  if (format === 'abgr8888') {
+    const src = new Uint32Array(raw.buffer, raw.byteOffset, width * height);
+    // ABGR bytes → RGBA bytes: swap the low and high byte of each 32-bit word.
+    const map = (p: number): number =>
+      ((p >>> 24) |
+        ((p >>> 8) & 0xff00) |
+        ((p & 0xff00) << 8) |
+        ((p & 0xff) << 24)) >>>
+      0;
+    scatter(src, out, width, height, turn, map);
+  } else {
+    const src = new Uint16Array(raw.buffer, raw.byteOffset, width * height),
+      lut = rgb565Lut();
+    scatter(src, out, width, height, turn, (p) => lut[p]!);
+  }
   return { width: w, height: h, pixels };
+}
+
+/** Row-major rotate into out; map() converts one source word to an RGBA word. */
+function scatter(
+  src: Uint16Array | Uint32Array,
+  out: Uint32Array,
+  width: number,
+  height: number,
+  turn: number,
+  map: (pixel: number) => number,
+): void {
+  if (turn === 0) {
+    for (let i = 0, n = width * height; i < n; i++) out[i] = map(src[i]!);
+    return;
+  }
+  if (turn === 2) {
+    for (let i = 0, n = width * height; i < n; i++)
+      out[i] = map(src[n - 1 - i]!);
+    return;
+  }
+  const w = height,
+    h = width;
+  for (let dy = 0; dy < h; dy++) {
+    const row = dy * w;
+    // turn 1: source column width-1-dy, walked top-down as dx grows.
+    // turn 3: source column dy, walked bottom-up as dx grows.
+    let at = turn === 1 ? width - 1 - dy : (height - 1) * width + dy;
+    const stride = turn === 1 ? width : -width;
+    for (let dx = 0; dx < w; dx++) {
+      out[row + dx] = map(src[at]!);
+      at += stride;
+    }
+  }
 }
 export interface DisplayFrame {
   width: number;
@@ -104,6 +137,7 @@ export class NativeDisplay {
   private reusable: ArrayBuffer[] = [];
   private lastTime = -Infinity;
   private lastScanout: Scanout | undefined;
+  private readBuffers: Uint8Array[] = [];
   private submitted = false;
   submissions = 0;
   dropped = 0;
@@ -141,12 +175,12 @@ export class NativeDisplay {
   get current(): boolean {
     const frame = this.description(),
       last = this.lastScanout;
-    return !!(
-      frame &&
-      last &&
-      sameDescription(frame, last.description) &&
-      samePixels(this.read(frame), last.bytes)
-    );
+    if (!frame || !last || !sameDescription(frame, last.description))
+      return false;
+    const raw = this.read(frame),
+      current = samePixels(raw, last.bytes);
+    this.recycleRead(raw);
+    return current;
   }
   acknowledge(frame: number, pixels: ArrayBuffer): void {
     const expected = this.pending.get(frame);
@@ -194,29 +228,43 @@ export class NativeDisplay {
     };
   }
   private read(frame: FrameDescription): Uint8Array {
-    return this.core.cpu.read(
-      frame.address,
-      frame.width * frame.height * (frame.format === 'rgb565' ? 2 : 4),
-    );
+    const size =
+        frame.width * frame.height * (frame.format === 'rgb565' ? 2 : 4),
+      readInto = this.core.cpu.readInto;
+    if (!readInto) return this.core.cpu.read(frame.address, size);
+    let raw = this.readBuffers.pop();
+    if (!raw || raw.byteLength !== size) raw = new Uint8Array(size);
+    readInto.call(this.core.cpu, frame.address, raw);
+    return raw;
+  }
+  private recycleRead(raw: Uint8Array): void {
+    if (this.core.cpu.readInto) this.readBuffers.push(raw);
   }
   poll(): void {
     if (!this.emit) return;
-    const now = performance.now();
-    if (!this.submitted && now - this.lastTime < 33) return;
+    const now = performance.now(),
+      committed = this.submitted;
+    if (!committed && now - this.lastTime < 33) return;
     this.submitted = false;
     this.lastTime = now;
     const frame = this.description();
     if (!frame) return;
     const raw = this.read(frame),
       last = this.lastScanout;
+    // A merger commit means fresh pixels; the exact compare only gates the
+    // throttled in-place scan.
     if (
+      !committed &&
       last &&
       sameDescription(frame, last.description) &&
       samePixels(raw, last.bytes)
-    )
+    ) {
+      this.recycleRead(raw);
       return;
+    }
     if (this.pending.size >= 2) {
       this.dropped++;
+      this.recycleRead(raw);
       return;
     }
     const converted = convertFrame(
@@ -227,7 +275,9 @@ export class NativeDisplay {
       this.core.profile.machine.display.rotation_quarters,
       this.reusable.pop(),
     );
+    const previous = this.lastScanout;
     this.lastScanout = { description: frame, bytes: raw };
+    if (previous) this.recycleRead(previous.bytes);
     this.pending.set(++this.sent, converted.pixels.byteLength);
     this.emit({ ...converted, frame: this.sent });
   }

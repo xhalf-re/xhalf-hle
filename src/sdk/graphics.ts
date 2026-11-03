@@ -2,6 +2,43 @@ import type { RuntimeCore } from '../runtime/core';
 import { combinePixels, fillPixels } from '../services/images';
 import type { Composition, Fill } from '../services/images';
 
+function canCompose4(composition: Composition): boolean {
+  const s = composition.surface;
+  if (
+    s.width <= 0 ||
+    s.height <= 0 ||
+    s.width > 4096 ||
+    s.height > 4096 ||
+    s.bpp !== 4
+  )
+    return false;
+  return composition.layers.every((layer) => {
+    const source = layer.surface,
+      [sx, sy, cw, ch] = layer.crop,
+      [dx, dy, dw, dh] = layer.target;
+    if (!cw || !ch || !dw || !dh) return true;
+    return (
+      !layer.rotate &&
+      !layer.mirrorX &&
+      !layer.mirrorY &&
+      source.bpp === 4 &&
+      sx >= 0 &&
+      sy >= 0 &&
+      cw >= 0 &&
+      ch >= 0 &&
+      sx + cw <= source.width &&
+      sy + ch <= source.height &&
+      dw >= 0 &&
+      dh >= 0 &&
+      cw === dw &&
+      ch === dh &&
+      source.width * source.height * 4 <= 0xffffffff &&
+      Number.isInteger(dx) &&
+      Number.isInteger(dy)
+    );
+  });
+}
+
 /** SDK graphics hardware. Drawing never determines whether scanout is current. */
 export class SdkGraphics {
   graphicsMs = 0;
@@ -21,20 +58,47 @@ export class SdkGraphics {
     });
     core.bind('image.combine', () => {
       const started = performance.now();
-      const decoded = this.decodeComposition(cpu.readRegister('r0'));
-      combinePixels(
-        decoded,
-        (a, n) => {
+      const decoded = this.decodeComposition(cpu.readRegister('r0')),
+        read = (a: number, n: number, layer = false) => {
           if (!profile.inRam(a, n, true))
             throw new Error('Composition read outside DRAM');
-          return cpu.read(a, n);
-        },
-        (a, b) => {
-          if (!profile.inRam(a, b.length, true))
-            throw new Error('Composition write outside DRAM');
-          cpu.write(a, b);
-        },
-      );
+          return layer && cpu.readView ? cpu.readView(a, n) : cpu.read(a, n);
+        };
+      let combined = false;
+      if (canCompose4(decoded) && cpu.compose4) {
+        const s = decoded.surface;
+        if (!profile.inRam(s.address, s.width * s.height * s.bpp, true))
+          throw new Error('Composition read outside DRAM');
+        for (const layer of decoded.layers) {
+          const source = layer.surface,
+            [, , cw, ch] = layer.crop,
+            [, , dw, dh] = layer.target;
+          if (
+            cw &&
+            ch &&
+            dw &&
+            dh &&
+            !profile.inRam(
+              source.address,
+              source.width * source.height * source.bpp,
+              true,
+            )
+          )
+            throw new Error('Composition read outside DRAM');
+        }
+        combined = cpu.compose4(decoded);
+      }
+      if (!combined)
+        combinePixels(
+          decoded,
+          (a, n) => read(a, n),
+          (a, b) => {
+            if (!profile.inRam(a, b.length, true))
+              throw new Error('Composition write outside DRAM');
+            cpu.write(a, b);
+          },
+          (a, n) => read(a, n, true),
+        );
       this.graphicsMs += performance.now() - started;
       sdk.ret();
     });

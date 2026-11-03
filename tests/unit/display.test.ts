@@ -50,6 +50,9 @@ function device(withCanvas = true) {
     ]),
     state = { index: 0, ready: true, width: 2, height: 1, format: 0x101 },
     read = vi.fn((address: number) => memory.get(address)!.slice()),
+    readInto = vi.fn((address: number, target: Uint8Array) => {
+      target.set(memory.get(address)!);
+    }),
     core = {
       profile,
       virtualNs: 0n,
@@ -66,6 +69,7 @@ function device(withCanvas = true) {
       },
       cpu: {
         read,
+        readInto,
         hook: vi.fn((_kind: string, callback: () => void) => {
           submit = callback;
           return 1;
@@ -87,10 +91,26 @@ function device(withCanvas = true) {
     memory,
     state,
     read,
+    readInto,
     advance,
     submit: () => submit(),
   };
 }
+
+test('reuses owned display read buffers while preserving the last scanout', () => {
+  const { display, frames, readInto, memory, advance } = device();
+  display.poll();
+  display.acknowledge(1, frames[0]!.pixels);
+  memory.get(0x42000000)![3] = 150;
+  expect(display.current).toBe(false);
+  advance(40);
+  display.poll();
+  expect(display.current).toBe(true);
+  const targets = readInto.mock.calls.map((call) => call[1]);
+  expect(targets[0]).not.toBe(targets[1]);
+  expect(targets[1]).toBe(targets[2]);
+  expect(targets[0]).not.toBe(targets[2]);
+});
 
 test('in-place guest writes invalidate current pixels even without graphics hooks', () => {
   const { display, frames, memory, advance } = device();

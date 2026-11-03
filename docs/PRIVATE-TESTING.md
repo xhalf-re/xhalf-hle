@@ -71,7 +71,7 @@ The production Worker, browser contracts and all private CPU tests use the stand
 
 ```sh
 npm run test:private -- tests/private/dynarmic-contracts.test.ts
-XHALF_DAT=./.private/FPUPDATE.DAT npm run test:private -- tests/private/native-input.test.ts
+XHALF_DAT=./.private/FPUPDATE.DAT npm run test:private -- tests/private/navigation-benchmark.test.ts
 XHALF_DAT=./.private/FPUPDATE.DAT npm run test:performance
 ```
 

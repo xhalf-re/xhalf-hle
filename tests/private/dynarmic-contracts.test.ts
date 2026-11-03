@@ -103,6 +103,197 @@ test('Dynarmic accesses across separately mapped pages', async () => {
   }
 });
 
+test('Dynarmic read views preserve bytes and fall back across allocations', async () => {
+  const cpu = await make();
+  try {
+    expect(cpu.readView).toBeTypeOf('function');
+    cpu.write(base + 4094, Uint8Array.of(1, 2, 3, 4, 5, 6));
+    expect([...cpu.readView!(base + 4094, 6)]).toEqual([1, 2, 3, 4, 5, 6]);
+    const copy = cpu.read(base + 4094, 6);
+    cpu.write(base + 4094, Uint8Array.of(9, 8, 7, 6, 5, 4));
+    expect([...copy]).toEqual([1, 2, 3, 4, 5, 6]);
+    expect([...cpu.read(base + 4094, 6)]).toEqual([9, 8, 7, 6, 5, 4]);
+    const separate = 0x60000000;
+    cpu.map(separate, 4096);
+    cpu.map(separate + 4096, 4096);
+    cpu.write(separate + 4094, Uint8Array.of(6, 5, 4, 3, 2, 1));
+    expect([...cpu.readView!(separate + 4094, 6)]).toEqual([6, 5, 4, 3, 2, 1]);
+    expect(() => cpu.readView!(0x70000000, 4)).toThrow('Unmapped read');
+  } finally {
+    cpu.destroy();
+  }
+});
+
+test('Dynarmic native copy and fill preserve bytes across mappings', async () => {
+  const cpu = await make();
+  try {
+    const source = Uint8Array.from({ length: 32 }, (_, i) => i + 1);
+    cpu.write(base + 96, source);
+    cpu.copy!(base + 100, base + 96, source.length);
+    expect([...cpu.read(base + 100, source.length)]).toEqual([...source]);
+    cpu.write(base + 4094, Uint8Array.of(1, 2, 3, 4, 5, 6));
+    cpu.copy!(base + 8192, base + 4094, 6);
+    expect([...cpu.read(base + 8192, 6)]).toEqual([1, 2, 3, 4, 5, 6]);
+    cpu.fill!(base + 4094, 6, 0xab);
+    expect([...cpu.read(base + 4094, 6)]).toEqual(Array(6).fill(0xab));
+    const separate = 0x60000000;
+    cpu.map(separate, 4096);
+    cpu.map(separate + 4096, 4096);
+    cpu.write(separate + 4094, Uint8Array.of(6, 5, 4, 3, 2, 1));
+    cpu.copy!(base + 12288, separate + 4094, 6);
+    expect([...cpu.read(base + 12288, 6)]).toEqual([6, 5, 4, 3, 2, 1]);
+    cpu.fill!(separate + 4094, 6, 0x5a);
+    expect([...cpu.read(separate + 4094, 6)]).toEqual(Array(6).fill(0x5a));
+    expect(() => cpu.copy!(base, 0x70000000, 4)).toThrow('Unmapped read');
+    expect(() => cpu.copy!(0x70000000, base, 4)).toThrow('Unmapped write');
+    expect(() => cpu.fill!(0x70000000, 4, 0)).toThrow('Unmapped write');
+  } finally {
+    cpu.destroy();
+  }
+});
+
+test('Dynarmic native ABGR composition matches clipping, blending and aliases', async () => {
+  const cpu = await make();
+  try {
+    const surface = { address: base, width: 3, height: 2, bpp: 4, format: 14 },
+      separate = 0x60000000;
+    cpu.map(separate, 4096);
+    cpu.map(separate + 4096, 4096);
+    for (let i = 0; i < 6; i++)
+      cpu.write(base + i * 4, Uint8Array.of(255, 1, 2, 3));
+    const source = {
+      address: separate + 4088,
+      width: 3,
+      height: 2,
+      bpp: 4,
+      format: 14,
+    };
+    cpu.write(
+      source.address,
+      Uint8Array.of(0, 8, 9, 10, 255, 11, 12, 13, 128, 21, 22, 23),
+    );
+    const layer = {
+      surface: source,
+      crop: [0, 0, 3, 1] as [number, number, number, number],
+      target: [-1, 1, 3, 1] as [number, number, number, number],
+      rotate: false,
+      mirrorX: false,
+      mirrorY: false,
+    };
+    expect(cpu.compose4!({ surface, layers: [layer] })).toBe(true);
+    expect([...cpu.read(base, 24)]).toEqual([
+      255, 1, 2, 3, 255, 1, 2, 3, 255, 1, 2, 3, 255, 11, 12, 13, 255, 11, 12,
+      13, 255, 1, 2, 3,
+    ]);
+    cpu.write(base, Uint8Array.of(255, 1, 2, 3, 255, 4, 5, 6, 255, 7, 8, 9));
+    expect(
+      cpu.compose4!({
+        surface: { ...surface, height: 1 },
+        layers: [
+          {
+            ...layer,
+            surface: { ...surface, height: 1 },
+            crop: [0, 0, 2, 1],
+            target: [1, 0, 2, 1],
+          },
+        ],
+      }),
+    ).toBe(true);
+    expect([...cpu.read(base, 12)]).toEqual([
+      255, 1, 2, 3, 255, 1, 2, 3, 255, 4, 5, 6,
+    ]);
+    const before = cpu.read(base, 12);
+    expect(
+      cpu.compose4!({
+        surface: { ...surface, height: 1 },
+        layers: [{ ...layer, rotate: true }],
+      }),
+    ).toBe(false);
+    expect([...cpu.read(base, 12)]).toEqual([...before]);
+    expect(() =>
+      cpu.compose4!({
+        surface,
+        layers: [{ ...layer, surface: { ...source, address: 0x70000000 } }],
+      }),
+    ).toThrow('Unmapped read');
+  } finally {
+    cpu.destroy();
+  }
+});
+
+test('Dynarmic native full-frame copy preserves transparent and opaque ABGR semantics', async () => {
+  const cpu = await make();
+  try {
+    const surface = { address: base, width: 2, height: 2, bpp: 4, format: 14 },
+      source = { ...surface, address: 0x60000000 },
+      destination = Uint8Array.of(
+        7,
+        10,
+        20,
+        30,
+        9,
+        40,
+        50,
+        60,
+        11,
+        70,
+        80,
+        90,
+        13,
+        100,
+        110,
+        120,
+      ),
+      layer = {
+        surface: source,
+        crop: [0, 0, 2, 2] as [number, number, number, number],
+        target: [0, 0, 2, 2] as [number, number, number, number],
+        rotate: false,
+        mirrorX: false,
+        mirrorY: false,
+      };
+    cpu.map(source.address, 4096);
+    cpu.write(surface.address, destination);
+    cpu.write(
+      source.address,
+      Uint8Array.of(255, 1, 2, 3, 255, 4, 5, 6, 255, 7, 8, 9, 255, 10, 11, 12),
+    );
+    expect(cpu.compose4!({ surface, layers: [layer] })).toBe(true);
+    expect([...cpu.read(surface.address, 16)]).toEqual([
+      255, 1, 2, 3, 255, 4, 5, 6, 255, 7, 8, 9, 255, 10, 11, 12,
+    ]);
+
+    cpu.write(surface.address, destination);
+    cpu.write(
+      source.address,
+      Uint8Array.of(
+        0,
+        200,
+        201,
+        202,
+        128,
+        100,
+        110,
+        120,
+        255,
+        1,
+        2,
+        3,
+        255,
+        4,
+        5,
+        6,
+      ),
+    );
+    expect(cpu.compose4!({ surface, layers: [layer] })).toBe(true);
+    expect([...cpu.read(surface.address, 16)]).toEqual([
+      7, 10, 20, 30, 132, 70, 80, 90, 255, 1, 2, 3, 255, 4, 5, 6,
+    ]);
+  } finally {
+    cpu.destroy();
+  }
+});
+
 test('Dynarmic privileged execution matches verified architectural states', async () => {
   const dynarmic = await make();
   const names = [
@@ -345,6 +536,44 @@ test('standalone page allocations are released after their last page is unmapped
   }
 });
 
+test('JIT compile accounting includes packed blocks and stays unchanged on cache hits', async () => {
+  const cpu = await make();
+  const count = 64;
+  const bytes = new Uint8Array(count * 4);
+  for (let i = 0; i < count; i++) bytes.set(programs.loop.slice(0, 4), i * 4);
+  cpu.write(base, bytes);
+  try {
+    cpu.run(base, count);
+    const cold = cpu.executionStats;
+    expect(cold.jitCompiledBlocks).toBe(count);
+    expect(cold.jitPackedModules).toBeGreaterThan(0);
+    for (const key of [
+      'jitCompileMs',
+      'jitTranslateMs',
+      'jitEmitMs',
+    ] as const) {
+      expect(Number.isFinite(cold[key])).toBe(true);
+      expect(cold[key]).toBeGreaterThan(0);
+    }
+    cpu.run(base, count);
+    const warm = cpu.executionStats;
+    for (const key of [
+      'jitCompiledBlocks',
+      'jitCompileMs',
+      'jitTranslateMs',
+      'jitEmitMs',
+    ] as const) {
+      expect(warm[key]).toBe(cold[key]);
+    }
+    cpu.invalidateCode(base, base + 4);
+    cpu.run(base, 1);
+    expect(cpu.executionStats.jitCompiledBlocks).toBe(count + 1);
+    expect(cpu.readRegister('r0')).toBe(count * 2 + 1);
+  } finally {
+    cpu.destroy();
+  }
+});
+
 test('JIT cache evicts cold blocks and recompiles them without changing CPU state', async () => {
   const cpu = await make(false);
   const count = 70000;
@@ -436,4 +665,250 @@ test('packed modules survive partial invalidation and release all owners on dest
   }
   expect(module.dynarmicWasmStats!.liveModules).toBe(0);
   expect(module.dynarmicWasmStats!.liveBlocks).toBe(0);
+});
+
+test('optional native hook counters record lookups and disappear in production builds', async () => {
+  const cpu = await make();
+  try {
+    const instrumented = 'nativeHookCodeChecks' in cpu.executionStats;
+    cpu.write(base, Uint8Array.from(programs.loop));
+    let hits = 0;
+    cpu.hook(
+      'code',
+      () => {
+        hits++;
+      },
+      base,
+      base,
+    );
+    cpu.run(base, 20);
+    expect(hits).toBe(10);
+    if (instrumented) {
+      expect(cpu.executionStats.nativeHookCodeChecks).toBeGreaterThanOrEqual(
+        20,
+      );
+      expect(cpu.executionStats.nativeHookCodeHits).toBe(10);
+      expect(cpu.executionStats.nativeHookBlockHits).toBe(0);
+    } else expect('nativeHookBlockChecks' in cpu.executionStats).toBe(false);
+  } finally {
+    cpu.destroy();
+  }
+});
+
+test('instruction hook presence preserves page edges, exact ranges and high ARM addresses', async () => {
+  const cpu = await make(false);
+  try {
+    for (const start of [0x40000ffc, 0xffffeffc]) {
+      const page = (start & ~4095) >>> 0;
+      cpu.map(page, 8192);
+      cpu.write(start, Uint8Array.from(programs.jump));
+      const events: string[] = [];
+      const point = cpu.hook(
+        'code',
+        (e) => {
+          events.push(`point:${e.address}`);
+        },
+        start + 4,
+        start + 4,
+      );
+      const range = cpu.hook(
+        'code',
+        (e) => {
+          events.push(`range:${e.address}`);
+        },
+        start,
+        start + 7,
+      );
+      const end = cpu.hook(
+        'block',
+        (e) => {
+          events.push(`block:${e.address}`);
+        },
+        start + 8,
+        start + 8,
+      );
+      // Same page as real hooks but outside the requested byte interval.
+      const miss = cpu.hook(
+        'code',
+        () => {
+          throw Error('False positive hook');
+        },
+        start + 1,
+        start + 3,
+      );
+      cpu.run(start, 3);
+      expect(events).toEqual([
+        `range:${start}`,
+        `point:${start + 4}`,
+        `range:${start + 4}`,
+        `block:${start + 8}`,
+      ]);
+      for (const id of [point, range, end, miss]) cpu.removeHook(id);
+      events.length = 0;
+      cpu.run(start, 3);
+      expect(events).toEqual([]);
+      const global = cpu.hook(
+        'code',
+        (e) => {
+          events.push(`global:${e.address}`);
+        },
+        10,
+        9,
+      );
+      cpu.run(start, 3);
+      expect(events).toEqual([
+        `global:${start}`,
+        `global:${start + 4}`,
+        `global:${start + 8}`,
+      ]);
+      cpu.removeHook(global);
+      cpu.unmap(page, 8192);
+    }
+  } finally {
+    cpu.destroy();
+  }
+});
+
+test('callback hook removal yields for invalidation and preserves the redirected PC', async () => {
+  const cpu = await make();
+  try {
+    cpu.write(base, Uint8Array.from(programs.jump));
+    const events: number[] = [];
+    const later = cpu.hook(
+      'code',
+      () => {
+        throw Error('Removed hook executed');
+      },
+      base + 4,
+      base + 4,
+    );
+    const first = cpu.hook(
+      'code',
+      () => {
+        events.push(base);
+        cpu.removeHook(later);
+        cpu.writeRegister('pc', base + 8);
+      },
+      base,
+      base,
+    );
+    cpu.hook(
+      'code',
+      () => {
+        events.push(base + 8);
+        cpu.stop();
+      },
+      base + 8,
+      base + 8,
+    );
+    cpu.run(base, 10);
+    // Removing a hook requests cache invalidation and returns this host slice.
+    expect(events).toEqual([base]);
+    expect(cpu.readRegister('pc')).toBe(base + 8);
+    cpu.run(cpu.readRegister('pc'), 10);
+    expect(events).toEqual([base, base + 8]);
+    expect(cpu.readRegister('pc')).toBe(base + 8);
+    cpu.removeHook(first);
+  } finally {
+    cpu.destroy();
+  }
+});
+
+test('instruction hook filter collisions and wide ranges retain exact matching', async () => {
+  const cpu = await make();
+  const alias = base + 0x20000;
+  try {
+    cpu.map(alias, 4096);
+    cpu.write(base, Uint8Array.from(programs.jump));
+    cpu.write(alias, Uint8Array.from(programs.jump));
+    let hits = 0;
+    const point = cpu.hook(
+      'code',
+      () => {
+        hits++;
+      },
+      base + 4,
+      base + 4,
+    );
+    cpu.run(alias, 3);
+    expect(hits).toBe(0);
+    cpu.run(base, 3);
+    expect(hits).toBe(1);
+    const wide = cpu.hook(
+      'block',
+      (e) => {
+        if (e.address === alias) cpu.stop();
+      },
+      0,
+      0xffffffff,
+    );
+    cpu.run(alias, 3);
+    expect(cpu.readRegister('pc')).toBe(alias);
+    cpu.removeHook(wide);
+    cpu.run(alias, 3);
+    expect(cpu.readRegister('pc')).toBe(alias + 12);
+    expect(hits).toBe(1);
+    cpu.removeHook(point);
+  } finally {
+    cpu.destroy();
+  }
+});
+
+test('native AAPCS division preserves results, guards, hook removal and observers', async () => {
+  const cpu = await make();
+  try {
+    const target = base + 128;
+    // Independently assembled fixtures: a native branch loop marks fallback;
+    // SDK replacement redirects to a sentinel hook without executing the loop.
+    cpu.write(base, Uint8Array.from(programs.loop));
+    cpu.write(target, Uint8Array.from(programs.loop));
+    cpu.hook('block', () => cpu.stop(), target, target);
+    const run = (n: number, d: number) => {
+      cpu.writeRegisters([
+        ['r0', n],
+        ['r1', d],
+        ['lr', target],
+        ['pc', base],
+      ]);
+      cpu.runSlice(base, 100);
+      return cpu.readRegisters(['r0', 'r1', 'pc']);
+    };
+    let observer = 0;
+    cpu.hook(
+      'code',
+      () => {
+        observer++;
+      },
+      base,
+      base,
+    );
+    const quotient = cpu.hookUnsignedDivision(base, false);
+    expect(run(0xffffffff, 3)).toEqual([1431655765, 3, target]);
+    expect(run(4, 0)).toEqual([0xffffffff, 0, target]);
+    cpu.removeHook(quotient);
+    const remainder = cpu.hookUnsignedDivision(base, true);
+    for (const [n, d] of [
+      [0, 0],
+      [1, 0],
+      [0, 3],
+      [0xffffffff, 7],
+      [0x80000001, 0x80000000],
+      [10, 3],
+    ]) {
+      const numerator = BigInt(n!),
+        denominator = BigInt(d!);
+      const q = d ? Number(numerator / denominator) : n ? 0xffffffff : 0;
+      const r = d ? Number(numerator % denominator) : 0;
+      expect(run(n!, d!)).toEqual([q, r, target]);
+    }
+    expect(observer).toBe(8);
+    expect(cpu.executionStats.nativeDivisionCalls).toBe(8);
+    cpu.removeHook(remainder);
+    cpu.writeRegister('r0', 0);
+    cpu.runSlice(base, 20);
+    expect(cpu.readRegister('r0')).toBeGreaterThan(0);
+    expect(cpu.executionStats.nativeDivisionCalls).toBe(8);
+  } finally {
+    cpu.destroy();
+  }
 });

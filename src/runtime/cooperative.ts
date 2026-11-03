@@ -44,6 +44,13 @@ export class CooperativeRunner {
     channel.port1.onmessage = turn;
     channel.port2.postMessage(null);
   }
+  /** Wake a pacing sleep: input and frame acknowledgements cannot wait for the timer. */
+  poke(): void {
+    if (!this.active || this.timer === undefined) return;
+    clearTimeout(this.timer);
+    this.timer = undefined;
+    this.channel?.port2.postMessage(null);
+  }
   stop(): void {
     this.active = false;
     this.generation++;

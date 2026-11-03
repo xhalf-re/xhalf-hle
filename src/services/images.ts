@@ -69,6 +69,7 @@ export function combinePixels(
   composition: Composition,
   read: ReadMemory,
   write: WriteMemory,
+  readLayer: ReadMemory = read,
 ): void {
   const s = composition.surface;
   if (s.width <= 0 || s.height <= 0 || s.width > 4096 || s.height > 4096)
@@ -100,7 +101,7 @@ export function combinePixels(
       dh < 0
     )
       throw new Error('Unsupported composition layer');
-    const bytes = read(src.address, src.width * src.height * src.bpp),
+    const bytes = readLayer(src.address, src.width * src.height * src.bpp),
       rw = layer.rotate ? ch : cw,
       rh = layer.rotate ? cw : ch;
     const x0 = Math.max(0, dx),
@@ -108,9 +109,14 @@ export function combinePixels(
       y0 = Math.max(0, dy),
       y1 = Math.min(s.height, dy + dh);
     if (x1 <= x0 || y1 <= y0) continue;
-    const xSamples = Int32Array.from({ length: x1 - x0 }, (_, i) => {
+    const sourceStride = src.width * s.bpp,
+      outputStride = s.width * s.bpp,
+      sourceOffsets = Int32Array.from({ length: x1 - x0 }, (_, i) => {
         const tx = Math.floor(((x0 + i - dx) * rw) / dw);
-        return layer.mirrorX ? rw - 1 - tx : tx;
+        const sample = layer.mirrorX ? rw - 1 - tx : tx;
+        return layer.rotate
+          ? (ch - 1 - sample) * sourceStride
+          : (sx + sample) * s.bpp;
       }),
       sourceWords =
         src.bpp === 4 && littleEndian && bytes.byteOffset % 4 === 0
@@ -120,17 +126,18 @@ export function combinePixels(
               bytes.byteLength / 4,
             )
           : undefined;
-    for (let y = y0; y < y1; y++) {
-      let ty = Math.floor(((y - dy) * rh) / dh);
-      if (layer.mirrorY) ty = rh - 1 - ty;
-      for (let x = x0; x < x1; x++) {
-        const tx = xSamples[x - x0]!;
-        const ix = layer.rotate ? ty : tx,
-          iy = layer.rotate ? ch - 1 - tx : ty,
-          from = ((sy + iy) * src.width + sx + ix) * src.bpp,
-          to = (y * s.width + x) * s.bpp;
-        if (s.bpp === 4) {
-          const alpha = bytes[from]!;
+    if (s.bpp === 4) {
+      for (let y = y0; y < y1; y++) {
+        let ty = Math.floor(((y - dy) * rh) / dh);
+        if (layer.mirrorY) ty = rh - 1 - ty;
+        const sourceBase: number = layer.rotate
+            ? sy * sourceStride + (sx + ty) * s.bpp
+            : (sy + ty) * sourceStride,
+          outputBase: number = y * outputStride + x0 * s.bpp;
+        for (let i = 0; i < sourceOffsets.length; i++) {
+          const from = sourceBase + sourceOffsets[i]!,
+            to = outputBase + i * s.bpp,
+            alpha = bytes[from]!;
           if (!alpha) continue;
           if (alpha === 255) {
             if (sourceWords && outputWords)
@@ -153,9 +160,22 @@ export function combinePixels(
             );
           output[to] =
             alpha + Math.floor((oldAlpha * (255 - alpha) + 127) / 255);
-        } else
+        }
+      }
+    } else {
+      for (let y = y0; y < y1; y++) {
+        let ty = Math.floor(((y - dy) * rh) / dh);
+        if (layer.mirrorY) ty = rh - 1 - ty;
+        const sourceBase: number = layer.rotate
+            ? sy * sourceStride + (sx + ty) * s.bpp
+            : (sy + ty) * sourceStride,
+          outputBase: number = y * outputStride + x0 * s.bpp;
+        for (let i = 0; i < sourceOffsets.length; i++) {
+          const from = sourceBase + sourceOffsets[i]!,
+            to = outputBase + i * s.bpp;
           for (let component = 0; component < s.bpp; component++)
             output[to + component] = bytes[from + component]!;
+        }
       }
     }
   }

@@ -12,14 +12,33 @@ XHALF_DAT=./.private/FPUPDATE.DAT npm run test:performance
 
 This command rebuilds the web app and tests the production preview. It does not rebuild Wasm; run `npm run wasm:build` first after changing C sources or build flags. Do not modify runtime artifacts during a measurement.
 
-## Dynarmic integration validation
+## Current Dynarmic acceptance
 
-The runtime uses the public dynarmic.js revision pinned in
-`scripts/dynarmic-source.json`; see [Wasm builds](WASM-BUILD.md).
-The integration baseline observes every translated block for hooks, IRQs and
-virtual time. It passed a clean Wasm build, `npm run check` (69 unit tests),
-ARM fixture verification, 14 synthetic CPU cases, five real-firmware
-boot/input/IRQ/display/storage regressions and Chromium CPU/Worker/cache tests.
+Measured on 2026-11-03 with public dynarmic.js release
+`157791a52fd1ffe5f9d44dc95b3990736825044e` and the retained host optimizations:
+guarded region dispatch, hook indexing, native AAPCS division, native composition,
+reusable display buffers and prompt input wakeups. Each browser ran three cold
+boots and 100 native navigation samples, sequentially without concurrent builds
+or emulator tests from the validation run.
+
+| Browser  | Cold boots                 | Navigation P95 |
+| -------- | -------------------------- | -------------- |
+| Chromium | 14.971 / 14.930 / 13.933 s | 60.3 ms        |
+| Firefox  | 21.047 / 18.974 / 18.968 s | 80.0 ms        |
+
+Both browsers passed the 120-second boot and 300-ms navigation gates with zero
+assertions, input/storage errors and undefined instructions. These are absolute
+acceptance measurements, not a controlled comparison with older builds or a
+claim of 16-ms processing latency. Runtime identities remained unchanged during
+sampling. Raw logs, manifests and samples remain in ignored
+`.private/performance/public-dynarmic-20261103/`.
+
+Validation also passed a clean Wasm build, `npm run check` (81 unit and eight
+profiling tests), ARM fixture verification, 24 synthetic CPU cases, five
+real-firmware boot/input/IRQ/display/storage regressions, public browser tests
+and Chromium/Firefox CPU/Worker/cache contracts. Long stability, power policy
+and the full menu matrix were not rerun for this release. Reproduce profiling
+and candidate comparisons using [PROFILING.md](performance/PROFILING.md).
 
 The following measurements predate this backend migration and describe their
 recorded builds, rather than the current runtime.

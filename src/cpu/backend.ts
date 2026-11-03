@@ -1,3 +1,5 @@
+import type { Composition } from '../services/images';
+
 /** Addresses are unsigned ARM32 values; reject wraparound rather than alias RAM. */
 export function address32(value: number): number {
   if (!Number.isInteger(value) || value < 0 || value > 0xffffffff)
@@ -81,6 +83,18 @@ export interface CpuBackend {
   unmap(address: number, size: number): void;
   protect(address: number, size: number, permissions: number): void;
   read(address: number, size: number): Uint8Array;
+  /** Fill a caller-owned buffer without allocating a second JS array. */
+  readInto?(address: number, target: Uint8Array): void;
+  /**
+   * Read while the CPU is paused. A returned view is valid only synchronously,
+   * before any other CPU operation; implementations may return a copy instead.
+   */
+  readView?(address: number, size: number): Uint8Array;
+  /** Copy or fill paused guest memory without a JS-sized staging allocation. */
+  copy?(destination: number, source: number, size: number): void;
+  fill?(address: number, size: number, value: number): void;
+  /** Accelerate contiguous ABGR composition; false selects the generic path. */
+  compose4?(composition: Composition): boolean;
   write(address: number, bytes: Uint8Array): void;
   readRegister(register: ArmRegister): number;
   readRegisters(registers: readonly ArmRegister[]): number[];
@@ -94,6 +108,8 @@ export interface CpuBackend {
     begin?: number,
     end?: number,
   ): HookHandle;
+  /** Install a guarded AAPCS unsigned quotient(/remainder) SDK replacement. */
+  hookUnsignedDivision?(address: number, remainder: boolean): HookHandle;
   removeHook(handle: HookHandle): void;
   run(begin: number, instructionLimit: number, until?: number): void;
   /** Approximate instruction budget, stopped at a translated block boundary. */
@@ -108,5 +124,6 @@ export interface CpuBackend {
   readonly executionStats?: {
     jitInstructions: number;
     systemInstructions: number;
+    nativeDivisionCalls?: number;
   };
 }
