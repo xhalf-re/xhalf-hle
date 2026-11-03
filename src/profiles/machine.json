@@ -31,17 +31,12 @@
   },
   "hle_read_stubs": {
     "0x10004054": 1,
-    "0x1000a10e": 3,
-    "0x1000903c": 32,
     "0x100003a3": 1,
-    "0x1000904c": 32,
     "0x10001304": 1
   },
   "scratch": {
     "ttbr0": 1058013184,
-    "inject_return": 1058078464,
     "checksum": 1058144256,
-    "input_message": 1058209792,
     "call_thunk": 1058213888,
     "call_packet": 1058214144,
     "sensor_registration": 1058217984,
@@ -124,6 +119,172 @@
       "base": 284164096,
       "max_transfer_sectors": 32768,
       "volume_ids": [0, 7]
+    },
+    "gpio_input": {
+      "edge_base": 268435464,
+      "rising_irq": 64,
+      "falling_irq": 96,
+      "pins": 26,
+      "inputs": [
+        {
+          "address": 268451904,
+          "size": 4,
+          "reset": 0
+        },
+        {
+          "address": 268472380,
+          "size": 4,
+          "reset": 32
+        },
+        {
+          "address": 268472396,
+          "size": 4,
+          "reset": 32
+        },
+        {
+          "address": 268476686,
+          "size": 1,
+          "reset": 3
+        }
+      ]
+    },
+    "i2c": {
+      "ports": [
+        {
+          "base": 268452608,
+          "status": 268451848,
+          "done_bit": 16,
+          "nack_bit": 17
+        },
+        {
+          "base": 268452656,
+          "status": 268451848,
+          "done_bit": 18,
+          "nack_bit": 19
+        },
+        {
+          "base": 268453376,
+          "status": 268453632,
+          "done_bit": 16,
+          "nack_bit": 17
+        }
+      ],
+      "reset": 268451858,
+      "transfer_ns": 1000
+    },
+    "touch": {
+      "port": 0,
+      "address": 85,
+      "irq_pin": 3,
+      "width": 640,
+      "height": 480,
+      "sample_interval_ns": 10000000,
+      "queue_limit": 256
+    },
+    "input": {
+      "gesture_gap_ns": 100000000,
+      "queue_limit": 256,
+      "gestures": {
+        "up": [
+          [400, 110, 0],
+          [400, 210, 120],
+          [400, 210, 450]
+        ],
+        "down": [
+          [400, 211, 0],
+          [400, 110, 120],
+          [400, 110, 450]
+        ],
+        "left": [
+          [50, 140, 0],
+          [50, 140, 80]
+        ],
+        "right": [
+          [50, 333, 0],
+          [50, 333, 80]
+        ],
+        "return": [
+          [400, 211, 0],
+          [400, 211, 80]
+        ],
+        "escape": [
+          [50, 240, 0],
+          [50, 240, 80]
+        ],
+        "ui-back": [
+          [50, 240, 0],
+          [50, 240, 80]
+        ],
+        "ui-confirm": [
+          [50, 185, 0],
+          [50, 185, 80]
+        ],
+        "m": [
+          [580, 240, 0],
+          [300, 240, 120],
+          [300, 240, 200]
+        ],
+        "setup-skip": [
+          [50, 294, 0],
+          [50, 294, 80]
+        ]
+      },
+      "sequences": {
+        "tab": ["setup-skip"],
+        "1": ["left", "left", "left", "left", "left", "left"],
+        "2": ["left", "left", "left", "left", "left", "left", "right"],
+        "3": ["left", "left", "left", "left", "left", "left", "right", "right"],
+        "4": [
+          "left",
+          "left",
+          "left",
+          "left",
+          "left",
+          "left",
+          "right",
+          "right",
+          "right"
+        ],
+        "5": [
+          "left",
+          "left",
+          "left",
+          "left",
+          "left",
+          "left",
+          "right",
+          "right",
+          "right",
+          "right"
+        ],
+        "6": [
+          "left",
+          "left",
+          "left",
+          "left",
+          "left",
+          "left",
+          "right",
+          "right",
+          "right",
+          "right",
+          "right"
+        ],
+        "7": [
+          "left",
+          "left",
+          "left",
+          "left",
+          "left",
+          "left",
+          "right",
+          "right",
+          "right",
+          "right",
+          "right",
+          "right"
+        ]
+      }
     }
   },
   "imaging": {

@@ -10,7 +10,7 @@ The app runs real ARM firmware and ThreadX in a single Web Worker. The main thre
 | Machine profile  | Describe memory, MMIO, IRQs, clocks and display orientation.                        |
 | Firmware profile | Bind versioned addresses, startup adaptations and instruction guards.               |
 | SDK adapter      | Decode AAPCS arguments, structures, native input protocols and callback contexts.   |
-| Runtime core     | Execute the CPU, map memory, deliver IRQs and manage virtual time and guest calls.  |
+| Runtime core     | Execute the CPU, map memory, deliver IRQs and manage virtual time.                  |
 | Host services    | Provide sector-backed virtual disks and graphics operations.                        |
 | Web shell        | Manage sessions, Canvas presentation and browser input.                             |
 
@@ -26,21 +26,17 @@ The CPU system-register model supplies the configured single-primary MPIDR ident
 
 ## Input
 
-GPIO inputs own the data-in registers at `0x1000903c`, `0x1000904c`, `0x10004040` and the shutter input at `0x1000a10e`. External GPIO edges use their original rising/falling SPI lines and native masks/W1C. The shutter stages drive active-low GPIO levels. The firmware has no direction-key ADC scan branch: browser Up/Down perform fixed touch gestures starting at the first/middle visible rows, Left/Right tap the native category controls, Enter taps the middle row, and Esc taps screen back. The native menu decides whether a row press focuses, opens or selects it. These mappings use screen coordinates from the machine profile and never inspect menu state. They do not emulate relative cursor keys; full lists remain accessible by dragging the screen.
+Pointer and keyboard input both enter a simulated capacitive touch chip. The I2C controller exposes its FIFO at `0x10004300`; the chip at address 0x55 supplies packed contact coordinates. External GPIO source 3 latches a falling edge and raises IRQ99. The unchanged IRQ handler wakes the original `Tup_Thread`, whose ARM I2C driver reads the report. There are no touch dispatch/read/wait hooks, injected ISR calls, input function patches, or host writes to ThreadX state.
 
-Touch reports enter the I2C controller FIFO at `0x10004300`. Touch-chip address 0x55 supplies the contact status and packed coordinates; GPIO source 3 raises falling-edge IRQ99. The unchanged ISR wakes the real `Tup_Thread`, whose original ARM I2C driver reads each scan. Host event timestamps determine controller scan deadlines. No touch dispatch/read/wait hooks or injected touch ISR calls remain.
+`GpioInputs` owns the external rising/falling interrupt banks, masks, W1C status and data-in registers. `I2cController` owns bounded transmit/receive FIFOs, enabled/busy state, transaction deadlines, completion/NACK status and reset cancellation. `TouchController` owns sensor coordinates and stationary-contact scans. Host pointer timestamps become relative guest-time scan deadlines; consecutive movement is coalesced while press and release are retained. Firmware owns calibration, gesture recognition, activity messages and UI dispatch.
 
-SAR conversions select the native channel, complete on guest time, latch status and raise IRQ132. The former `boot.key_adc` actually reads the battery on SAR6; thermal uses SAR0. Nominal values live in `machine.json`. Eye proximity is an I2C register read and focus-ring/power probes use serial readback; these share the configurable board channel values without replacing their ARM wrappers.
+Keyboard controls are fixed screen gestures from `machine.json`, independent of menu state. Up/Down drag from the first/middle row, Left/Right tap the category controls, Enter taps the middle row, and Esc/B tap the screen back location. M swipes the main display; Tab taps the screen skip control. Category sequences use the same physical screen path. There are no SDK message shortcuts, injected key releases or host ACTIVE messages. Their effect depends on the controls actually displayed by the firmware.
 
-Primary and auxiliary serial completion latch GPIO sources 0/2/4/6, routed through IRQ186. The native interrupt consumers drain their software queues; completing only the controller busy bit leaves those queues full.
+Cancellation before a contact is sampled drops it. Cancellation after sampling releases the physical contact; firmware can interpret that release as a tap. The host does not fabricate an SDK error to force a reset. Pausing stops guest time and resume does not replay elapsed wall time.
 
-Cancellation sends one I2C NACK. The stock board wrapper does not propagate that failure as SDK status 2: a sampled cancellation currently looks like a release. Restoring the former reset behavior requires an explicit error-propagation adaptation; device NACK alone does not establish that behavior.
+`FirstSetup` is a separate, optional startup driver. It observes setup progress and queues screen gestures, including opening the menu. It never changes guest state. Manual setup does not instantiate it. Input-idle diagnostics read the native UI queue without using it to select or deliver inputs.
 
-M, Tab, 1–7 and B/C remain fixed `sysg.send4` shortcuts. Physical direction release messages, two-second host ACTIVE coalescing and UI-consumption backpressure have been removed.
-
-Shortcut messages run through an independently written ARM handler on SGI15. The original IRQ registration function installs that handler once at the idle boundary; subsequent delivery uses the GIC and the native exception path. The handler calls the original `sysg.send4`. The host never writes ThreadX `system_state`.
-
-`FirstSetup` is a separate startup driver. It uses native Tab/M messages to skip initial setup and open the main menu. Manual setup does not create this driver.
+Board battery/thermal, eye proximity and focus-ring/power readings still use the SDK services listed in [hooks](HOOKS.md); they are separate from browser touch/keyboard input. See [input devices](INPUT.md) for register contracts, references and acceptance.
 
 ## Display
 
@@ -78,7 +74,7 @@ Instruction-hook queries use a 64 KiB conservative address filter before the exa
 
 The 27 MHz architectural counter advances at TB boundaries through a native observer that runs before IRQ selection. The five generic timer outputs and scheduled peripheral deadlines update the GIC during execution; JavaScript callbacks occur only when a deadline is due or timer levels change. MMIO also synchronizes device time. Timer programming, the counter and the external IRQ line survive CPU-context restoration. Original CP15 and MPIDR instructions run at any ARM/Thumb PC without firmware-address substitutions.
 
-A host step has a 100,000-unit budget, about 200 microseconds of active guest execution. It does not quantize IRQ delivery. WFI waits for external work; while halted, the board clock advances to the earliest device/generic-timer deadline, bounded by 200 microseconds per host step. Explicit callback returns consume only their charged execution time. Per-instance native hooks and clock callbacks are removed before CPU destruction.
+A host step has a 100,000-unit budget, about 200 microseconds of active guest execution. It does not quantize IRQ delivery. WFI waits for external work; while halted, the board clock advances to the earliest device/generic-timer deadline, bounded by 200 microseconds per host step. Per-instance native hooks and clock callbacks are removed before CPU destruction.
 
 Worker startup uses a 112 ms work budget. After establishing the real-time baseline, it uses 16 ms to serve input and frame acknowledgements promptly. Zero-delay continuation uses MessageChannel task boundaries; positive delays use timers for wall-clock pacing. Stopping closes ports, clears timers and invalidates queued generations.
 

@@ -152,14 +152,6 @@
         "data": [4, "I"]
       }
     },
-    "touch_driver": {
-      "size": 6,
-      "fields": {
-        "initialized": [0, "B"],
-        "polling": [1, "B"],
-        "enabled": [2, "B"]
-      }
-    },
     "disk_context": {
       "size": 128,
       "fields": {
@@ -195,35 +187,9 @@
     "ui_thread_names": ["host", "ViewDrawOsd"]
   },
   "input": {
-    "key_map": {
-      "up": [4026531843, 0, 0, 0],
-      "down": [4026531844, 0, 0, 0],
-      "left": [4026531845, 0, 0, 0],
-      "right": [4026531846, 0, 0, 0],
-      "m": [4093640786, 0, 0, 0],
-      "escape": [4026531845, 0, 0, 0],
-      "return": [4026531847, 0, 0, 0],
-      "tab": [4043309112, 0, 0, 0],
-      "1": [4026532081, 0, 0, 0],
-      "2": [4026532081, 1, 0, 0],
-      "3": [4026532081, 2, 0, 0],
-      "4": [4026532081, 3, 0, 0],
-      "5": [4026532081, 4, 0, 0],
-      "6": [4026532081, 5, 0, 0],
-      "7": [4026532081, 6, 0, 0],
-      "ui-back": [4043309109, 0, 0, 0],
-      "ui-confirm": [4043309110, 0, 0, 0]
-    },
-    "activity_message": [4026531952, 0, 0, 0],
-    "release_delta": 32,
     "menu_id_range": [4096, 65536],
-    "language_stride": 2,
-    "language_id_offset": 0,
     "pointer_space": "display",
-    "pointer_size": [640, 480],
-    "sample_interval_ns": 10000000,
-    "queue_limit": 256,
-    "activity_interval_ns": 2000000000
+    "pointer_size": [640, 480]
   },
   "images": {
     "fill_packed_formats": {

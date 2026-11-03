@@ -7,7 +7,6 @@ import type { Command, WorkerEvent } from './protocol';
 import { createDynarmicBackend } from '../cpu/dynarmic';
 import { RuntimeCore } from '../runtime/core';
 import { SdkServices } from '../sdk/services';
-import { GuestCalls } from '../sdk/guest';
 import { ProgressWatch } from '../runtime/progress';
 import { NativeDisplay } from '../sdk/display';
 import { SdkGraphics } from '../sdk/graphics';
@@ -76,7 +75,6 @@ async function startRuntime(
   }
   try {
     core = new RuntimeCore(cpu, profile, bundle);
-    new GuestCalls(core);
     new SdkServices(core);
     const graphics = new SdkGraphics(core);
     const acceleration = new BulkAcceleration(core);
@@ -85,12 +83,9 @@ async function startRuntime(
       send({ type: 'frame', ...frame, request, session }, [frame.pixels]),
     );
     const startup = manualSetup ? undefined : new FirstSetup(core, input);
-    core.nextCall = () => {
+    core.beforeStep = () => {
       startup?.poll();
-      return input!.nextCall();
-    };
-    core.completeCall = (call, status) => {
-      if (call.kind === 'input') input!.complete(status);
+      input!.poll();
     };
     core.afterStep = () => {
       display!.poll();
@@ -104,7 +99,8 @@ async function startRuntime(
     runner = new CooperativeRunner(
       () => {
         const pendingInput =
-          !!input && (input.pending.length > 0 || input.touch.busy);
+          !!input &&
+          (input.pending.length > 0 || input.touch.samples.length > 0);
         if (epoch && !inputBurst && !pendingInput) {
           const ahead =
             Number(core!.virtualNs - epoch.virtual) / 1e6 -
@@ -114,7 +110,8 @@ async function startRuntime(
         core!.step();
         if (cpu.executionStats.jitRetryPending) return 50;
         const inputAfterStep =
-          !!input && (input.pending.length > 0 || input.touch.busy);
+          !!input &&
+          (input.pending.length > 0 || input.touch.samples.length > 0);
         if (inputBurst && !inputAfterStep && epoch)
           epoch = { wall: performance.now(), virtual: core!.virtualNs };
         inputBurst = inputAfterStep;

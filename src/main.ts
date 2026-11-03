@@ -81,7 +81,7 @@ const session = new BrowserSession((event) => {
     ).__xhalfMetrics = event.metrics;
   if (event.type === 'metrics' && session.state === 'running')
     status.textContent = event.metrics.menuReady
-      ? 'Main menu ready. Click or drag the screen; keyboard controls work where camera buttons are supported.'
+      ? 'Main menu ready. Click or drag the screen; keyboard controls perform screen gestures.'
       : 'Menus are running. Click or drag the screen; some menus support touch only.';
   if (event.type === 'frame') {
     if (canvas.width !== event.width || canvas.height !== event.height) {

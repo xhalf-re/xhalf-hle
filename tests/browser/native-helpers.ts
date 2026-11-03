@@ -9,8 +9,39 @@ export async function metrics(page: Page): Promise<Metrics> {
 }
 export function screenInput(page: Page) {
   const settle = async () => {
+    let signature = '',
+      since = 0;
+    // A suspended UI queue can precede touch drawing and inertial scrolling.
+    // Script the next physical gesture only after the actual screen is quiet.
     await expect
-      .poll(async () => (await metrics(page)).inputIdle, { timeout: 15000 })
+      .poll(
+        async () => {
+          const state = await metrics(page);
+          if (
+            !state.inputIdle ||
+            !state.frameSettled ||
+            state.touchTaskState !== 7 ||
+            state.touchDrawState !== 7
+          ) {
+            signature = '';
+            return false;
+          }
+          const current = [
+            state.menu,
+            state.index,
+            state.mainScroll,
+            state.subScroll,
+            state.optionScroll,
+            state.frames,
+          ].join(':');
+          if (signature !== current) {
+            signature = current;
+            since = Number(state.virtualMs);
+          }
+          return Number(state.virtualMs) - since >= 150;
+        },
+        { timeout: 15000, intervals: [20, 50, 100] },
+      )
       .toBe(true);
   };
   const point = async (x: number, y: number) => {

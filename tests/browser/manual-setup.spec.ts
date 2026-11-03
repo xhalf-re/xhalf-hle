@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-test('manual first setup completes through native keyboard skip and menu actions', async ({
+test('manual first setup completes through screen controls and a physical menu gesture', async ({
   page,
 }) => {
   test.skip(
@@ -35,20 +35,24 @@ test('manual first setup completes through native keyboard skip and menu actions
     if (state.menuReady) break;
     if (Date.now() > deadline)
       throw new Error('Manual setup did not reach native main menu');
-    if (
+    if (state.mode === 8208 && state.inputIdle && Date.now() - action > 500) {
+      await page.keyboard.press('KeyM');
+      action = Date.now();
+    } else if (
       Number(state.menu) >= 12290 &&
       Number(state.menu) <= 12301 &&
       (!last || last !== state.menu || Date.now() - action > 2500)
     ) {
-      await page.keyboard.press('Tab');
+      if (Number(state.menu) <= 12291) await page.keyboard.press('Tab');
+      else {
+        const box = (await page.locator('canvas').boundingBox())!;
+        await page.mouse.click(
+          box.x + (50 * box.width) / 640,
+          box.y + (240 * box.height) / 480,
+          { delay: 80 },
+        );
+      }
       last = Number(state.menu);
-      action = Date.now();
-    } else if (
-      state.mode === 8208 &&
-      state.inputIdle &&
-      Date.now() - action > 500
-    ) {
-      await page.keyboard.press('KeyM');
       action = Date.now();
     }
     await page.waitForTimeout(200);

@@ -78,3 +78,23 @@ XHALF_DAT=./.private/FPUPDATE.DAT npm run test:performance
 The synthetic suite includes all shared CPU contracts, system-register and IRQ contracts, RRX flags, and accesses across separately allocated pages. The browser performance report records the Dynarmic artifact hashes and JIT/system execution counters. System instructions, exceptions and memory management run entirely in Dynarmic. The verified privileged-state fixture contains only results of the project’s synthetic assembly programs. Private reports require `undefinedInstructions: 0`; build metadata and symbol audits verify the standalone runtime.
 
 For Firefox regressions install its Playwright runtime with `npx playwright install firefox`, then use `XHALF_BROWSER=firefox`. The browser CPU suite includes a 70,000-block cache-pressure case with eviction and recompilation. The Node CPU suite injects transient and persistent executable-memory failures to check same-PC resumption and bounded retries. Chromium remains the default performance acceptance browser; report Firefox timing separately.
+
+## Input devices
+
+`tests/private/native-input.test.ts` boots through physical screen operations,
+verifies original input/idle instructions and absence of production input hooks,
+and observes IRQ99 and the original touch task through a guarded private fixture.
+A host-write guard rejects any attempted modification of ThreadX system state.
+The aggregate report is `.private/input-lowering/acceptance.json`.
+
+```sh
+XHALF_DAT=./.private/FPUPDATE.DAT npm run test:private -- tests/private/native-input.test.ts
+XHALF_DAT=./.private/FPUPDATE.DAT npm run test:e2e -- tests/browser/menu-matrix.spec.ts tests/browser/manual-setup.spec.ts tests/browser/pointer.spec.ts tests/browser/pointer-scale.spec.ts
+```
+
+Keyboard controls are physical screen gestures; list focus/scrolling follows the
+native touch policy. Scripted browser gestures wait for native touch tasks and a
+quiet, current frame before the next action. Sampled pointer cancellation is a
+physical release and may activate the pressed row; unsampled cancellation drops
+the press. The tests verify that behavior and recovery without an injected SDK
+error. See [input devices](INPUT.md) for the register contract and design sources.

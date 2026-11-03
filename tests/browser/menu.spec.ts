@@ -52,10 +52,9 @@ test('cold boot automatically reaches native main menu and keyboard changes nati
     .not.toBe(Number(initial.index));
   await page.keyboard.press('Digit6');
   await expect.poll(async () => (await metrics(page)).menu).toBe(12289);
-  const setupIndex = (await metrics(page)).index;
   await screenInput(page).key('ArrowDown');
-  expect((await metrics(page)).index).toBe(setupIndex);
-  await screenInput(page).tap(400, 110);
+  expect((await metrics(page)).index).toBe(1);
+  await screenInput(page).row(0, 'mainScroll');
   await expect.poll(async () => (await metrics(page)).menu).toBe(12304);
   await screenInput(page).key('KeyB');
   await expect.poll(async () => (await metrics(page)).menu).toBe(12289);

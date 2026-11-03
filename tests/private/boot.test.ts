@@ -9,7 +9,6 @@ import { RuntimeCore } from '../../src/runtime/core';
 import { SdkServices } from '../../src/sdk/services';
 import { NativeDisplay } from '../../src/sdk/display';
 import { SdkGraphics } from '../../src/sdk/graphics';
-import { GuestCalls } from '../../src/sdk/guest';
 test.skipIf(!process.env.XHALF_DAT)(
   'real firmware boots with the identical Wasm core in Node for engine diagnosis',
   async () => {
@@ -27,7 +26,6 @@ test.skipIf(!process.env.XHALF_DAT)(
       core = new RuntimeCore(cpu, profile, bundle),
       display = new NativeDisplay(core);
     new SdkServices(core);
-    new GuestCalls(core);
     new SdkGraphics(core);
     core.afterStep = () => display.poll();
     const started = performance.now();

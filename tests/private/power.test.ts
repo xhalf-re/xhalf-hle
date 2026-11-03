@@ -10,10 +10,11 @@ import { RuntimeCore } from '../../src/runtime/core';
 import { SdkServices } from '../../src/sdk/services';
 import { NativeDisplay } from '../../src/sdk/display';
 import { SdkGraphics } from '../../src/sdk/graphics';
-import { GuestCalls } from '../../src/sdk/guest';
 import { NativeInput } from '../../src/sdk/input';
 import { FirstSetup } from '../../src/runtime/first-setup';
 import { BulkAcceleration } from '../../src/sdk/acceleration';
+import firmware from '../../src/profiles/xhalf-main.json';
+import bindings from './fixtures/input-bindings.json';
 
 test
   .skipIf(!process.env.XHALF_DAT)
@@ -21,7 +22,10 @@ test
   'native power policy from independent DAT cold boot: %s',
   async (name) => {
     const bundle = await loadBundle(readFileSync(process.env.XHALF_DAT!)),
-      profile = new FirmwareProfile();
+      profile = new FirmwareProfile({
+        ...firmware,
+        symbols: { ...firmware.symbols, ...bindings.symbols },
+      });
     await profile.preflight(bundle);
     const imported = (await import(
       /* @vite-ignore */ pathToFileURL(
@@ -36,18 +40,14 @@ test
       display = new NativeDisplay(core),
       input = new NativeInput(core);
     new SdkServices(core);
-    new GuestCalls(core);
     new SdkGraphics(core);
     new BulkAcceleration(core);
     const startup = new FirstSetup(core, input);
-    core.nextCall = () => {
+    core.beforeStep = () => {
       startup.poll();
-      return input.nextCall();
+      input.poll();
     };
     core.afterStep = () => display.poll();
-    core.completeCall = (call, status) => {
-      if (call.kind === 'input') input.complete(status);
-    };
     const wall = performance.now(),
       // Native IRQ handling executes every due ISR. Allow Node/Wasm enough
       // wall time for the unchanged 120/140-second virtual power scenarios.

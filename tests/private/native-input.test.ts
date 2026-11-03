@@ -1,128 +1,230 @@
-import { runtimePath } from './cpu-backend';
+import { runtimePath, TestBackend, type TestModule } from './cpu-backend';
 import { test, expect } from 'vitest';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
-import { TestBackend } from './cpu-backend';
-import type { TestModule } from './cpu-backend';
 import { loadBundle } from '../../src/firmware/package';
 import { FirmwareProfile } from '../../src/firmware/profile';
 import { RuntimeCore } from '../../src/runtime/core';
 import { SdkServices } from '../../src/sdk/services';
 import { NativeDisplay } from '../../src/sdk/display';
 import { SdkGraphics } from '../../src/sdk/graphics';
-import { GuestCalls } from '../../src/sdk/guest';
 import { NativeInput } from '../../src/sdk/input';
 import { FirstSetup } from '../../src/runtime/first-setup';
 import { BulkAcceleration } from '../../src/sdk/acceleration';
+import firmware from '../../src/profiles/xhalf-main.json';
+import bindings from './fixtures/input-bindings.json';
 
 test.skipIf(!process.env.XHALF_DAT)(
-  'native controller reaches the SDK gesture processor in its own task',
+  'I2C/GPIO input boots, navigates and executes unmodified ARM drivers in native IRQ/task contexts',
   async () => {
     const bundle = await loadBundle(readFileSync(process.env.XHALF_DAT!)),
-      profile = new FirmwareProfile();
+      profile = new FirmwareProfile({
+        ...firmware,
+        symbols: { ...firmware.symbols, ...bindings.symbols },
+      });
+    expect(profile.id).toBe(bindings.profile);
     await profile.preflight(bundle);
     const imported = (await import(
-      /* @vite-ignore */ pathToFileURL(resolve(runtimePath)).href
-    )) as { default: () => Promise<TestModule> };
-    const core = new RuntimeCore(
-        new TestBackend(await imported.default(), profile.machine.cpu_model),
-        profile,
-        bundle,
+        /* @vite-ignore */ pathToFileURL(resolve(runtimePath)).href
+      )) as { default: () => Promise<TestModule> },
+      cpu = new TestBackend(
+        await imported.default(),
+        profile.machine.cpu_model,
       ),
+      installed: { kind: string; begin?: number; end?: number }[] = [],
+      hook = cpu.hook.bind(cpu);
+    cpu.hook = (kind, callback, begin, end) => {
+      installed.push({ kind, begin, end });
+      return hook(kind, callback, begin, end);
+    };
+    const core = new RuntimeCore(cpu, profile, bundle),
       display = new NativeDisplay(core),
       input = new NativeInput(core);
     new SdkServices(core);
-    new GuestCalls(core);
     new SdkGraphics(core);
     new BulkAcceleration(core);
     const startup = new FirstSetup(core, input);
-    core.nextCall = () => {
+    core.beforeStep = () => {
       startup.poll();
-      return input.nextCall();
+      input.poll();
     };
     core.afterStep = () => display.poll();
-    core.completeCall = (call, status) => {
-      if (call.kind === 'input') input.complete(status);
-    };
-    const trace: object[] = [];
-    const snapshot = () => ({
-      ms: Number(core.virtualNs / 1000000n),
-      menu: core.sdk.menuState(),
-      controller: [...core.cpu.read(0x40e137f4, 6)],
-      policy: [...core.cpu.read(0x413d319c, 6)],
-      sdk: [...core.cpu.read(0x413e174c + 0x34, 6)],
-      scrawl: [...core.cpu.read(0x413e174c + 0xb38, 0x14)],
-      draw: [...core.cpu.read(0x413e3d20, 8)],
-      gesture: [...core.cpu.read(0x413e4bc4, 0x2c)],
-      queue: input.touch.samples.length,
-      events: input.touch.events,
-    });
-    core.cpu.hook(
-      'block',
-      () => {
-        trace.push({
-          name: 'enable',
-          lr: core.cpu.readRegister('lr'),
-          args: core.sdk.arguments(),
-          ...snapshot(),
-        });
-      },
-      0x40502a0c,
-      0x40502a0c,
+    const retired = Object.entries(bindings.symbols).filter(
+      ([name]) => !name.startsWith('input.'),
     );
-    let recording = false;
-    for (const [name, address] of Object.entries({
-      read: 0x405e8a8c,
-      sample: 0x405b5380,
-      controllerRead: 0x405b5314,
-      analyze: 0x405b3dcc,
-      gate: 0x405b4f88,
-      gesture: 0x405f9f64,
-      release: 0x405f9d58,
-      scrawl: 0x405b41cc,
-      app: 0x404a9138,
-    }))
-      core.cpu.hook(
-        'block',
-        () => {
-          if (recording && trace.length < 500)
-            trace.push({ name, args: core.sdk.arguments(5), ...snapshot() });
-        },
-        address,
-        address,
-      );
+    let isrs = 0,
+      reads = 0,
+      invalidIsr = 0,
+      invalidTask = 0,
+      inputIrqs = 0;
+    const gestureEvents = new Set<number>();
+    const originalWrite = cpu.write.bind(cpu),
+      stateAddress = profile.address('tx.system_state');
+    cpu.write = (address, bytes) => {
+      if (address < stateAddress + 4 && address + bytes.length > stateAddress)
+        throw new Error('Host must not write ThreadX system_state');
+      originalWrite(address, bytes);
+    };
+    mkdirSync('.private/input-lowering', { recursive: true });
+    let lastProgress = 0;
     const until = (condition: () => boolean, limit = 120000) => {
       const end = performance.now() + limit;
       while (!condition()) {
         core.step();
-        if (performance.now() > end) throw Error('Native controller deadline');
+        if (performance.now() - lastProgress >= 1000) {
+          lastProgress = performance.now();
+          writeFileSync(
+            '.private/input-lowering/progress.json',
+            JSON.stringify({
+              menu: core.sdk.menuState(),
+              virtualMs: Number(core.virtualNs / 1000000n),
+              pending: input.pending.length,
+              busy: input.touch.busy,
+              settled: input.touch.settled,
+              idle: input.idle,
+              gestures: input.sent,
+              isrs,
+              reads,
+              invalidIsr,
+              invalidTask,
+            }),
+          );
+        }
+        if (performance.now() > end) throw Error('Native input deadline');
       }
     };
-    mkdirSync('.private/input-refactor', { recursive: true });
-    try {
-      until(() => core.sdk.menuState()?.id === 8193 && input.idle);
-      trace.push({ name: 'boot', ...snapshot() });
-      recording = true;
-      const time = Number(core.virtualNs / 1000000n);
-      input.touch.pointer('down', 400, 211, time);
-      input.touch.pointer('up', 400, 211, time + 80);
-      const end = core.virtualNs + 1000000000n;
+    const advance = (ms: number) => {
+      const end = core.virtualNs + BigInt(ms) * 1000000n;
       until(() => core.virtualNs >= end && input.idle, 30000);
-      trace.push({ name: 'final', ...snapshot() });
+    };
+    const tap = (x: number, y: number) => {
+      const time = Number(core.virtualNs / 1000000n);
+      input.touch.pointer('down', x, y, time);
+      input.touch.pointer('up', x, y, time + 80);
+      advance(500);
+    };
+    try {
+      for (const [name, binding] of retired) {
+        expect(
+          installed.some(
+            ({ kind, begin, end }) =>
+              (kind === 'block' || kind === 'code') &&
+              begin !== undefined &&
+              end !== undefined &&
+              binding.address >= begin &&
+              binding.address <= end,
+          ),
+          name,
+        ).toBe(false);
+        const offset = binding.address - profile.firmware.boot.load_base;
+        expect(
+          Array.from(cpu.read(binding.address, binding.guard.length)),
+          name,
+        ).toEqual(
+          Array.from(
+            bundle.payload.subarray(offset, offset + binding.guard.length),
+          ),
+        );
+      }
+      hook(
+        'block',
+        () => {
+          isrs++;
+          if (
+            !core.gic.active.has(99) ||
+            core.sdk.word('tx.system_state') === 0
+          )
+            invalidIsr++;
+        },
+        profile.address('sdk.touch.interrupt'),
+        profile.address('sdk.touch.interrupt'),
+      );
+      hook(
+        'block',
+        () => {
+          reads++;
+          const thread = core.sdk.word('tx.current_thread');
+          if (
+            core.sdk.word('tx.system_state') !== 0 ||
+            !profile.inRam(thread, profile.layouts.thread!.size) ||
+            core.sdk.field(thread, 'thread', 'entry') !==
+              profile.address('sdk.touch.thread_entry')
+          )
+            invalidTask++;
+        },
+        profile.address('sdk.touch.read'),
+        profile.address('sdk.touch.read'),
+      );
+      hook(
+        'block',
+        () => {
+          gestureEvents.add(cpu.readRegister('r0'));
+        },
+        profile.address('input.scrawl'),
+        profile.address('input.scrawl'),
+      );
+      hook(
+        'read',
+        () => {
+          if (core.gic.active.has(99)) inputIrqs++;
+        },
+        profile.machine.gic.cpu_interface + 12,
+        profile.machine.gic.cpu_interface + 12,
+      );
+      until(() => core.sdk.menuState()?.id === 8193 && input.idle);
+      tap(400, 211);
       expect(core.sdk.menuState()?.id).toBe(8195);
-      const events = trace.filter(
-        (row) => (row as { name: string }).name === 'scrawl',
-      ) as { args: number[] }[];
-      expect(events.map((row) => row.args[0])).toEqual(
+      input.press('ui-back');
+      input.release('ui-back');
+      advance(500);
+      expect(core.sdk.menuState()?.id).toBe(8193);
+      tap(50, 333);
+      expect(core.sdk.menuState()?.category).toBe(1);
+      tap(50, 140);
+      expect(core.sdk.menuState()?.category).toBe(0);
+      // An unconsumed browser press must disappear without injecting an ISR.
+      const before = input.touch.scans;
+      input.touch.pointer('down', 400, 211, Number(core.virtualNs / 1000000n));
+      input.touch.cancelPointer();
+      advance(200);
+      expect(core.sdk.menuState()?.id).toBe(8193);
+      expect(input.touch.scans - before).toBeLessThanOrEqual(1);
+      expect(input.touch.busy).toBe(false);
+      expect(isrs).toBeGreaterThan(0);
+      expect(inputIrqs).toBeGreaterThan(0);
+      expect(reads).toBeGreaterThan(0);
+      expect(invalidIsr).toBe(0);
+      expect(invalidTask).toBe(0);
+      expect([...gestureEvents]).toEqual(
         expect.arrayContaining([0x800, 0x900, 0xa00]),
       );
       expect(core.assertions).toBe(0);
-    } finally {
+      expect(cpu.executionStats.undefinedInstructions).toBe(0);
+      mkdirSync('.private/input-lowering', { recursive: true });
       writeFileSync(
-        '.private/input-refactor/native.json',
-        JSON.stringify(trace, null, 2),
+        '.private/input-lowering/acceptance.json',
+        JSON.stringify(
+          {
+            passed: true,
+            isrs,
+            inputIrqs,
+            reads,
+            invalidIsr,
+            invalidTask,
+            i2cTransfers: core.i2c.transfers,
+            i2cNacks: core.i2c.nacks,
+            touchScans: core.touch.scans,
+            touchReports: core.touch.reports,
+            hostThreadXWrites: 0,
+            inputFunctionHooks: 0,
+            menu: core.sdk.menuState()?.id,
+          },
+          null,
+          2,
+        ),
       );
+    } finally {
       core.destroy();
     }
   },
