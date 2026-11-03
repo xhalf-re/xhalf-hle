@@ -51,8 +51,8 @@ export function renderShell(app: HTMLElement): void {
     <div class="actions"><button id="pause" disabled>Pause</button><button id="reset" disabled>Reload</button><button id="stop" disabled>Stop and release session</button></div>
     <progress id="progress" max="1" value="0" aria-label="Firmware loading progress"></progress>
     <p role="status" aria-live="polite">Choose firmware to start.</p>
-    <nav class="virtual-keys" aria-label="Buttons and shortcuts"><button data-key="m">Menu M</button><button data-key="return">Confirm Enter</button><button data-key="escape">Back Esc</button><button data-key="tab">Skip Tab</button><button data-key="ui-back">Screen back B</button><button data-key="ui-confirm">Screen confirm C</button></nav>
-    <p class="key-help">Click or drag the screen to navigate. Arrow keys / Enter / Esc work in menus that support camera buttons. M: menu · 1–7: categories · Tab: skip first-time setup · B/C: back/confirm</p>
+    <nav class="virtual-keys" aria-label="Buttons and shortcuts"><button data-key="m">Menu M</button><button data-key="return">Confirm Enter</button><button data-key="escape">Back Esc</button><button data-key="tab">Screen skip Tab</button><button data-key="ui-back">Screen back B</button><button data-key="ui-confirm">Screen confirm C</button></nav>
+    <p class="key-help">Click or drag the screen to navigate. Up/Down: drag rows · Left/Right: categories · Enter: tap middle row · Esc/B: screen back · M: swipe menu · 1–7: category gestures · Tab: screen skip · C: screen confirm</p>
   </section>
   <details><summary>Diagnostics</summary><pre id="diagnostics">Not started</pre></details>
   <footer>Desktop Chrome / Edge · Firmware stays in your browser</footer>

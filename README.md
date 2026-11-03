@@ -10,7 +10,7 @@ Run native ARM firmware, ThreadX and the camera's original menus in your browser
 
 Open the app in desktop Chrome or Edge, then drop your firmware file onto the page or choose it with the file picker. The app validates the package and boots the firmware from scratch. First-time setup is skipped through native firmware events; select **Complete first-time setup manually** before loading to perform it yourself.
 
-Click and drag the firmware display to navigate. Arrow keys, Enter and Esc work where the firmware supports camera buttons; some menus support touch only. Additional shortcuts are M for the menu, 1–7 for categories, Tab to skip setup, and B/C for the screen's back/confirm actions. On-screen buttons provide the same shortcuts.
+Click and drag the firmware display to navigate. Keyboard controls perform fixed screen gestures: Up/Down drag rows, Left/Right browse categories, Enter taps the middle row, and Esc/B tap the back control. M swipes open the menu, 1–7 perform category gestures, Tab taps the screen skip control, and C taps the confirm control. Their effect depends on the controls currently displayed. On-screen buttons perform the same gestures.
 
 Pause, resume, stop or reload a session using the controls below the display. Settings changes last only for the session and do not modify the original file. The app pauses when the page loses focus or becomes hidden.
 

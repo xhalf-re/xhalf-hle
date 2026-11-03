@@ -9,7 +9,6 @@ import { RuntimeCore } from '../../src/runtime/core';
 import { SdkServices } from '../../src/sdk/services';
 import { NativeDisplay } from '../../src/sdk/display';
 import { SdkGraphics } from '../../src/sdk/graphics';
-import { GuestCalls } from '../../src/sdk/guest';
 import { NativeInput } from '../../src/sdk/input';
 import { FirstSetup } from '../../src/runtime/first-setup';
 import { BulkAcceleration } from '../../src/sdk/acceleration';
@@ -38,8 +37,7 @@ test.skipIf(!process.env.XHALF_DAT)(
       polls = 0,
       frames = 0,
       stepMs = 0,
-      steps = 0,
-      callCount = 0;
+      steps = 0;
     let runSliceMs = 0,
       runSliceCalls = 0,
       diagnosticsMs = 0,
@@ -60,24 +58,19 @@ test.skipIf(!process.env.XHALF_DAT)(
       display.acknowledge(frame.frame, frame.pixels);
     });
     new SdkServices(core);
-    new GuestCalls(core);
     new SdkGraphics(core);
     const acceleration = new BulkAcceleration(core);
 
     const startup = new FirstSetup(core, input);
-    core.nextCall = () => {
+    core.beforeStep = () => {
       startup.poll();
-      return input.nextCall();
+      input.poll();
     };
     core.afterStep = () => {
       const t = performance.now();
       if (!skipDisplayPoll) display.poll();
       pollMs += performance.now() - t;
       polls++;
-    };
-    core.completeCall = (call, status) => {
-      callCount++;
-      if (call.kind === 'input') input.complete(status);
     };
     const originalStep = core.step.bind(core);
     core.step = ((until?: bigint) => {
@@ -127,7 +120,7 @@ test.skipIf(!process.env.XHALF_DAT)(
           runSliceMs0 = runSliceMs,
           runSliceCalls0 = runSliceCalls,
           steps0 = steps,
-          calls0 = callCount;
+          calls0 = input.sent;
         input.press(key);
         input.release(key);
         let indexMs = -1;
@@ -159,7 +152,7 @@ test.skipIf(!process.env.XHALF_DAT)(
           runSliceMs: runSliceMs - runSliceMs0,
           runSliceCalls: runSliceCalls - runSliceCalls0,
           steps: steps - steps0,
-          calls: callCount - calls0,
+          calls: input.sent - calls0,
         });
       }
       const walls = samples.map((s) => (s as { wallMs: number }).wallMs),

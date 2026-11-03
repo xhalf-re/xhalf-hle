@@ -10,17 +10,22 @@ import { RuntimeCore } from '../../src/runtime/core';
 import { SdkServices } from '../../src/sdk/services';
 import { NativeDisplay } from '../../src/sdk/display';
 import { SdkGraphics } from '../../src/sdk/graphics';
-import { GuestCalls } from '../../src/sdk/guest';
 import { NativeInput } from '../../src/sdk/input';
 import { FirstSetup } from '../../src/runtime/first-setup';
 import { pointerHelpers } from './pointer-helpers';
 import { BulkAcceleration } from '../../src/sdk/acceleration';
+import firmware from '../../src/profiles/xhalf-main.json';
+import bindings from './fixtures/menu-bindings.json';
 
 test.skipIf(!process.env.XHALF_DAT || !process.env.XHALF_CATALOG)(
   'discover reachable native menus through actual queue and SDK task navigation',
   async () => {
     const bundle = await loadBundle(readFileSync(process.env.XHALF_DAT!)),
-      profile = new FirmwareProfile();
+      profile = new FirmwareProfile({
+        ...firmware,
+        symbols: { ...firmware.symbols, ...bindings.symbols },
+      });
+    expect(profile.id).toBe(bindings.profile);
     await profile.preflight(bundle);
     const imported = (await import(
       /* @vite-ignore */ pathToFileURL(
@@ -35,18 +40,14 @@ test.skipIf(!process.env.XHALF_DAT || !process.env.XHALF_CATALOG)(
       display = new NativeDisplay(core),
       input = new NativeInput(core);
     new SdkServices(core);
-    new GuestCalls(core);
     new SdkGraphics(core);
     new BulkAcceleration(core);
     const startup = new FirstSetup(core, input);
-    core.nextCall = () => {
+    core.beforeStep = () => {
       startup.poll();
-      return input.nextCall();
+      input.poll();
     };
     core.afterStep = () => display.poll();
-    core.completeCall = (call, status) => {
-      if (call.kind === 'input') input.complete(status);
-    };
     const roots = [8193, 8197, 8205, 8211, 8217, 12289, 32769],
       nodes: {
         category: number;
@@ -87,8 +88,8 @@ test.skipIf(!process.env.XHALF_DAT || !process.env.XHALF_CATALOG)(
               })),
               busy: input.touch.busy,
               events: input.touch.events,
-              due: Number(input.touch.due),
-              woken: (input.touch as unknown as { woken: boolean }).woken,
+              nextScan: Number(core.peripherals.clock.nextDeadline ?? 0n),
+              reports: input.touch.reports,
             },
           },
           null,

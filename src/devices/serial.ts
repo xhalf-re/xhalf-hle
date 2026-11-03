@@ -18,6 +18,7 @@ export class SerialControllers implements MmioDevice {
   constructor(
     readonly config: SerialRegisters,
     private clock: VirtualEvents,
+    private completed: (source: number) => void = () => {},
   ) {
     this.ranges = [[config.base, config.ports * config.stride]] as const;
     this.registers = new Uint8Array(config.ports * config.stride);
@@ -43,6 +44,10 @@ export class SerialControllers implements MmioDevice {
             () => {
               this.registers[at] = this.registers[at]! & ~1;
               this.transfers++;
+              this.completed(
+                Math.floor(at / this.config.stride) * 2 +
+                  (field === 0x44 ? 4 : 0),
+              );
             },
           );
       }

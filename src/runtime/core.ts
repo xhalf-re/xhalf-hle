@@ -1,7 +1,7 @@
-import type { CpuBackend, CpuContext } from '../cpu/backend';
+import type { CpuBackend } from '../cpu/backend';
 import type { FirmwareBundle } from '../firmware/package';
 import type { FirmwareProfile } from '../firmware/profile';
-import { SdkAdapter, registerName, words } from '../sdk/adapter';
+import { SdkAdapter, words } from '../sdk/adapter';
 import { Gic } from './gic';
 import { PagedMemory } from '../cpu/paged-memory';
 import { PeripheralBus } from '../devices/bus';
@@ -14,13 +14,10 @@ import { GpioInterrupts } from '../devices/gpio';
 import { ClockGates } from '../devices/clocks';
 import { CaptureDma } from '../devices/capture';
 import { StorageDevice } from '../devices/storage';
+import { GpioInputs } from '../devices/gpio-input';
+import { I2cController } from '../devices/i2c';
+import { TouchController } from '../devices/touch';
 
-export interface GuestCall {
-  function: number;
-  arguments: number[];
-  kind?: string;
-  returns?: 'void';
-}
 export class RuntimeCore {
   readonly sdk: SdkAdapter;
   readonly gic: Gic;
@@ -33,6 +30,9 @@ export class RuntimeCore {
   readonly gpio: GpioInterrupts;
   readonly capture: CaptureDma;
   readonly storage: StorageDevice;
+  readonly gpioInputs: GpioInputs;
+  readonly i2c: I2cController;
+  readonly touch: TouchController;
   virtualNs = 0n;
   instructions = 0;
   mmioReads = 0;
@@ -43,22 +43,10 @@ export class RuntimeCore {
   private systemTimerLevels = 0;
   readonly hooks = new Map<string, number>();
   readonly calls = new Map<string, number>();
-  nextCall: (() => GuestCall | null) | undefined;
-  prepareCall: ((call: GuestCall) => GuestCall) | undefined;
-  completeCall: ((call: GuestCall, status: number) => void) | undefined;
+  beforeStep: (() => void) | undefined;
   afterStep: (() => void) | undefined;
   /** Maximum budget charged by one host step; tests may vary this boundary. */
   executionSliceBudget = 100_000;
-  private injected:
-    | {
-        context: CpuContext;
-        pc: number;
-        systemState: number;
-        budget: number;
-        call: GuestCall;
-      }
-    | undefined;
-  private callPollStep = -1;
   constructor(
     readonly cpu: CpuBackend,
     readonly profile: FirmwareProfile,
@@ -74,6 +62,20 @@ export class RuntimeCore {
     cpu.setIrq(false);
     this.gic = new Gic(m.gic, (asserted) => cpu.setIrq(asserted));
     this.peripherals.attach(this.gic);
+    this.gpioInputs = new GpioInputs(m.peripherals.gpio_input, this.gic);
+    this.peripherals.attach(this.gpioInputs);
+    this.i2c = new I2cController(m.peripherals.i2c, this.peripherals.clock);
+    this.peripherals.attach(this.i2c);
+    this.touch = new TouchController(
+      m.peripherals.touch,
+      this.peripherals.clock,
+      this.gpioInputs,
+    );
+    this.i2c.attach(
+      m.peripherals.touch.port,
+      m.peripherals.touch.address,
+      this.touch,
+    );
     this.peripherals.attach(new ClockGates(m.peripherals.clocks));
     this.hardwareTimers = new HardwareTimers(
       m.peripherals.timers,
@@ -132,6 +134,7 @@ export class RuntimeCore {
     this.serial = new SerialControllers(
       m.peripherals.serial,
       this.peripherals.clock,
+      (source) => this.gpio.signal(source),
     );
     this.peripherals.attach(this.serial);
     this.gpio = new GpioInterrupts(
@@ -247,23 +250,6 @@ export class RuntimeCore {
         `Native ASSERT at PC 0x${cpu.readRegister('pc').toString(16)}, LR 0x${cpu.readRegister('lr').toString(16)}`,
       );
     });
-    const ret = profile.scratch('inject_return');
-    cpu.write(ret, words([0xeafffffe]));
-    cpu.hook('block', () => this.leaveCall(), ret, ret);
-    this.bind(
-      'runtime.idle',
-      () => {
-        if (!this.injected && this.callPollStep !== this.instructions) {
-          // Host input is constant during cpu.run().
-          // Revisit delivery on the next slice rather than repeatedly
-          // inspecting the same SDK queues in native polling loops.
-          this.callPollStep = this.instructions;
-          const call = this.nextCall?.();
-          if (call) this.enterCall(call);
-        }
-      },
-      true,
-    );
     cpu.configureExecutionClock(
       m.ns_per_instruction,
       m.counter_hz,
@@ -324,42 +310,9 @@ export class RuntimeCore {
       this.peripherals.clock.advance(now);
     }
   }
-  private enterCall(call: GuestCall): void {
-    const prepared = this.prepareCall?.(call) ?? call;
-    if (prepared.arguments.length > 4)
-      throw new Error(
-        'ISR call requires the AAPCS trampoline for stack arguments',
-      );
-    const systemState = this.sdk.word('tx.system_state'),
-      context = this.cpu.saveContext(),
-      pc = this.cpu.readRegister('pc');
-    this.injected = { context, pc, systemState, budget: 2000000, call };
-    this.sdk.put32(this.profile.address('tx.system_state'), systemState + 1);
-    this.cpu.writeRegister('lr', this.profile.scratch('inject_return'));
-    this.cpu.writeRegister('pc', prepared.function);
-    for (let i = 0; i < 4; i++)
-      this.cpu.writeRegister(registerName(`r${i}`), prepared.arguments[i] ?? 0);
-  }
-  private leaveCall(): void {
-    const current = this.injected;
-    if (!current) throw new Error('Unexpected callback return trap');
-    const result = this.cpu.readRegister('r0');
-    this.cpu.restoreContext(current.context);
-    this.cpu.freeContext(current.context);
-    this.cpu.writeRegister('pc', current.pc);
-    this.sdk.put32(
-      this.profile.address('tx.system_state'),
-      current.systemState,
-    );
-    this.injected = undefined;
-    this.cpu.stop();
-    this.completeCall?.(
-      current.call,
-      current.call.returns === 'void' ? 0 : result,
-    );
-  }
   /** An optional deadline bounds the budget; the final TB can cross it. */
   step(until?: bigint): void {
+    this.beforeStep?.();
     const start = this.cpu.executionTime,
       unit = BigInt(this.profile.machine.ns_per_instruction);
     if (until !== undefined && until <= start)
@@ -383,11 +336,6 @@ export class RuntimeCore {
     this.instructions += charged;
     if (this.cpu.waitingForInterrupt) this.cpu.idleExecutionClock(end);
     this.synchronizeClock();
-    if (this.injected) {
-      this.injected.budget -= charged;
-      if (this.injected.budget <= 0)
-        throw new Error('Native callback instruction budget exceeded');
-    }
     this.afterStep?.();
   }
   diagnostics(): Record<string, string | number | boolean> {
@@ -448,6 +396,11 @@ export class RuntimeCore {
       storageErrors: this.storage.errors,
       storageOverlaySectors: this.storage.images[1]!.overlaySectors,
       serialTransfers: this.serial.transfers,
+      i2cTransfers: this.i2c.transfers,
+      i2cNacks: this.i2c.nacks,
+      touchScans: this.touch.scans,
+      touchReports: this.touch.reports,
+      inputGpioEdges: this.gpioInputs.edges,
       panelTransfers: this.panel.transfers,
       cqCompletions: this.commandQueue.completions,
       hardwareTimerFirings: this.hardwareTimers.firings,

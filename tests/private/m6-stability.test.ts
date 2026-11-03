@@ -10,7 +10,6 @@ import { RuntimeCore } from '../../src/runtime/core';
 import { SdkServices } from '../../src/sdk/services';
 import { NativeDisplay } from '../../src/sdk/display';
 import { SdkGraphics } from '../../src/sdk/graphics';
-import { GuestCalls } from '../../src/sdk/guest';
 import { NativeInput } from '../../src/sdk/input';
 import { FirstSetup } from '../../src/runtime/first-setup';
 import { BulkAcceleration } from '../../src/sdk/acceleration';
@@ -34,18 +33,14 @@ test.skipIf(!process.env.XHALF_DAT)(
       display = new NativeDisplay(core),
       input = new NativeInput(core);
     new SdkServices(core);
-    new GuestCalls(core);
     new SdkGraphics(core);
     new BulkAcceleration(core);
     const startup = new FirstSetup(core, input);
-    core.nextCall = () => {
+    core.beforeStep = () => {
       startup.poll();
-      return input.nextCall();
+      input.poll();
     };
     core.afterStep = () => display.poll();
-    core.completeCall = (call, status) => {
-      if (call.kind === 'input') input.complete(status);
-    };
     const wall = performance.now(),
       start = core.virtualNs,
       target = start + 1800n * 1000000000n,

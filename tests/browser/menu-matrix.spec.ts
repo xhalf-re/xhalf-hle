@@ -73,24 +73,25 @@ test('native menu matrix uses fixed keys, direct touch and mixed input', async (
   await input.key('Digit1');
   await capture('11-shortcut-shooting', 8193, undefined, 0);
   await input.key('Digit6');
-  const setup = await capture('12-setup', 12289);
+  await capture('12-setup', 12289);
   await input.key('ArrowDown');
-  await capture('13-setup-native-key', 12289, Number(setup.index));
+  await capture('13-setup-native-key', 12289, 1);
   await input.row(0, 'mainScroll');
   await capture('14-basic-touch', 12304, 0);
   await input.key('ArrowDown');
-  await capture('15-basic-native-down', 12304, 0);
+  const basicDown = await capture('15-basic-native-down', 12304, 1);
   await input.key('ArrowUp');
-  await capture('16-basic-native-up', 12304, 0);
+  const basicUp = await capture('16-basic-native-up', 12304);
+  expect(Number(basicUp.subScroll)).toBeLessThan(Number(basicDown.subScroll));
   await input.row(4, 'subScroll');
   const language = await capture('17-language-touch', 12312);
   const original = Number(language.index),
     count = Number(language.optionCount),
     next = (original + 1) % count;
   await input.key('ArrowDown');
-  await capture('18-language-native-down', 12312, original);
+  await capture('18-language-native-down', 12312);
   await input.key('ArrowUp');
-  await capture('19-language-native-up', 12312, original);
+  await capture('19-language-native-up', 12312);
   await input.row(next, 'optionScroll');
   await capture('20-language-confirm-next', 12312, next);
   await input.row(original, 'optionScroll');

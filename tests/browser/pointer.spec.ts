@@ -99,17 +99,23 @@ test('native screen taps enter an option and native sidebar taps change category
       { timeout: 15000 },
     )
     .toBe(true);
-  expect((await read()).menu).toBe(12304);
+  // The physical controller has no SDK cancel command. A sampled cancellation
+  // releases the contact, so the native tap opens the visible row.
+  await expect.poll(async () => (await read()).menu).toBe(12307);
+  const controls = screenInput(page);
+  await controls.key('KeyB');
+  await expect.poll(async () => (await read()).menu).toBe(12304);
   await page.keyboard.press('ArrowDown');
   await expect
     .poll(async () => (await read()).inputIdle, { timeout: 15000 })
     .toBe(true);
-  const controls = screenInput(page);
   await controls.key('KeyB');
   await expect.poll(async () => (await read()).menu).toBe(12289);
   await controls.tap(400, 110);
   await expect.poll(async () => (await read()).menu).toBe(12304);
-  const held = await controls.point(400, 110);
+  // Hold the inert header while pausing: release must drain after resume
+  // without any queued wall-time catch-up or a stuck controller contact.
+  const held = await controls.point(400, 25);
   await page.mouse.move(held.x, held.y);
   await page.mouse.down();
   await page.waitForTimeout(150);

@@ -1,0 +1,112 @@
+{
+  "profile": "xhalf-main-21aa469f",
+  "symbols": {
+    "sdk.touch.dispatch_site": {
+      "address": 1079727372,
+      "kind": "code",
+      "optional": false,
+      "group": "test.input",
+      "guard": {
+        "length": 16,
+        "sha256": "95be3fe4212d267f20eccd29d5735f809e758a75bbe9e9ff7571caf2c906484f"
+      }
+    },
+    "runtime.idle": {
+      "address": 1073748512,
+      "kind": "code",
+      "optional": false,
+      "group": "test.input",
+      "guard": {
+        "length": 16,
+        "sha256": "1f9bd9470210cb88dfc76cd291f3fc528883b8b66fc1617986e6da7ff91757b7"
+      }
+    },
+    "sdk.touch.thread_entry": {
+      "address": 1079727336,
+      "kind": "function",
+      "group": "test.input",
+      "guard": {
+        "length": 16,
+        "sha256": "f72e166042860b27933a580a5b208c9fb6145a48bf75fe323be36cc3a7610bf1"
+      }
+    },
+    "sdk.touch.read": {
+      "address": 1079937676,
+      "kind": "function",
+      "optional": false,
+      "group": "test.input",
+      "guard": {
+        "length": 16,
+        "sha256": "cb650909d71b2bad4fd7c4da5ace4199f8e1c1e230ec41ffae0580a591df0db7"
+      }
+    },
+    "sdk.touch.device_read": {
+      "address": 1079726868,
+      "kind": "function",
+      "optional": false,
+      "group": "test.input",
+      "guard": {
+        "length": 16,
+        "sha256": "378aafb17e8eeeb0e27cc1e7b0d46d069592b8619ecc2eb73ad8b6ba93f33d45"
+      }
+    },
+    "sdk.touch.wait_site": {
+      "address": 1079727348,
+      "kind": "code",
+      "optional": false,
+      "group": "test.input",
+      "guard": {
+        "length": 16,
+        "sha256": "9a6f5a7c60ea909f9dc33b23cb266d4536e85ca5a4def872beb9aa1d4dd3c6e2"
+      }
+    },
+    "sdk.touch.interrupt": {
+      "address": 1079726424,
+      "kind": "function",
+      "optional": false,
+      "group": "test.input",
+      "guard": {
+        "length": 16,
+        "sha256": "aa20828902075e7e6e5b1aa243898a1184276ec0358a9cade7002db3b5f96909"
+      }
+    },
+    "sdk.key.send": {
+      "address": 1074934128,
+      "kind": "function",
+      "optional": false,
+      "group": "test.input",
+      "guard": {
+        "length": 16,
+        "sha256": "78890ce4ae4f23fe2ecdfba002ddf3acadc2d211bd66d5bbf5a3d47d3d46740c"
+      }
+    },
+    "input.scrawl": {
+      "address": 1079722444,
+      "kind": "function",
+      "group": "test.input",
+      "guard": {
+        "length": 16,
+        "sha256": "e67ec76b25944c2ba32305fba0f2abcec67bc13e2faa18c518f4109e38bf923a"
+      }
+    },
+    "input.sample": {
+      "address": 1079726976,
+      "kind": "function",
+      "group": "test.input",
+      "guard": {
+        "length": 16,
+        "sha256": "86299fd97b307b361b22535f0b7452262f45453834628b5245f55229773e4c45"
+      }
+    },
+    "sysg.send4": {
+      "address": 1074197296,
+      "kind": "function",
+      "optional": false,
+      "group": "test.input",
+      "guard": {
+        "length": 16,
+        "sha256": "e0f9b417b0e69331b413061303f35924a68e2237e91408c3000702823f8455b0"
+      }
+    }
+  }
+}

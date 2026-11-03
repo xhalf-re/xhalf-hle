@@ -80,6 +80,7 @@ export const firmwareSchema = z
         roles: z.record(z.string(), uint),
         categories: z.array(z.string()).length(7),
         first_setup_ids: z.array(uint),
+        first_setup_gestures: z.record(z.string(), z.string()).default({}),
         view_mode: uint,
         basic_language_index: uint,
         first_item: uint,
@@ -167,6 +168,48 @@ export class FirmwareProfile {
     const f = this.firmware,
       m = this.machine,
       s = this.sdk;
+    const touch = m.peripherals.touch,
+      input = m.peripherals.input,
+      gestures = input.gestures as Record<string, number[][]>,
+      sequences = input.sequences as Record<string, string[]>;
+    if (
+      touch.width !== s.input.pointer_size[0] ||
+      touch.height !== s.input.pointer_size[1] ||
+      touch.sample_interval_ns <= 0 ||
+      touch.queue_limit < 2 ||
+      input.queue_limit < 1 ||
+      input.gesture_gap_ns < 0 ||
+      Object.values(gestures).some(
+        (points) =>
+          points.length < 2 ||
+          points.length > touch.queue_limit ||
+          points.some(
+            (p, i) =>
+              p.length !== 3 ||
+              p[0]! < 0 ||
+              p[0]! >= touch.width ||
+              p[1]! < 0 ||
+              p[1]! >= touch.height ||
+              p[2]! < 0 ||
+              p[2]! > 60000 ||
+              (i === 0 ? p[2] !== 0 : p[2]! < points[i - 1]![2]!),
+          ),
+      ) ||
+      Object.values(sequences).some(
+        (names) =>
+          !names.length ||
+          names.length > input.queue_limit ||
+          names.some((name) => !Object.hasOwn(gestures, name)),
+      ) ||
+      Object.values(f.ui.first_setup_gestures).some(
+        (name) =>
+          !Object.hasOwn(gestures, name) && !Object.hasOwn(sequences, name),
+      )
+    )
+      throw new FirmwareError(
+        'PROFILE_MISMATCH',
+        'Invalid input device geometry or gesture sequence.',
+      );
     if (
       !['display', 'scan-buffer'].includes(s.input.pointer_space) ||
       s.input.pointer_size.length !== 2 ||

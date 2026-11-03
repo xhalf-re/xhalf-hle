@@ -31,14 +31,12 @@ def migrate(document, resource_root, dat):
     d.pop('boot_patch_notes', None)
     # Desktop observers and retired host entry points have no web consumers.
     retired = {
-        'runtime.irq_window', 'runtime.compare_read_site', 'display.frame_done',
+        'runtime.idle', 'runtime.irq_window', 'runtime.compare_read_site', 'display.frame_done',
         'display.event_group', 'irq.handlers', 'tx.queue_send', 'sdk.touch.signal',
         'ui.main_list_scrawl', 'ui.sub_scrawl', 'ui.viewdraw',
         'sdk.touch.dispatch_site', 'sdk.touch.wait_site', 'sdk.touch.read',
         'sdk.touch.device_read', 'sdk.touch.interrupt', 'sdk.touch.thread_entry',
-        'sdk.touch.driver', 'sdk.key.send', 'boot.key_adc',
-        'board.boot_adc_interval', 'board.thermal_read', 'board.eye_sensor_read',
-        'board.power_probe', 'board.focus_ring_read',
+        'sdk.touch.driver', 'sdk.key.send', 'sysg.send4',
         'ui.main_scrawl', 'ui.option_scrawl', 'ui.scrawl_callback',
         'ui.language_table',
     }

@@ -12,12 +12,13 @@ import { FirmwareProfile } from '../../src/firmware/profile';
 import { RuntimeCore } from '../../src/runtime/core';
 import { SdkServices } from '../../src/sdk/services';
 import { SdkGraphics } from '../../src/sdk/graphics';
-import { GuestCalls } from '../../src/sdk/guest';
 import { NativeInput } from '../../src/sdk/input';
 import { FirstSetup } from '../../src/runtime/first-setup';
 import { pointerHelpers } from './pointer-helpers';
 import { BulkAcceleration } from '../../src/sdk/acceleration';
 import { NativeDisplay, convertFrame } from '../../src/sdk/display';
+import firmware from '../../src/profiles/xhalf-main.json';
+import bindings from './fixtures/menu-bindings.json';
 
 test.skipIf(!process.env.XHALF_DAT || !process.env.XHALF_BASELINE)(
   'stable main-menu pixels match independent desktop cold-boot reference at the nearest TB boundary',
@@ -63,7 +64,11 @@ test.skipIf(!process.env.XHALF_DAT || !process.env.XHALF_BASELINE)(
       );
     }
     const bundle = await loadBundle(readFileSync(process.env.XHALF_DAT!)),
-      profile = new FirmwareProfile();
+      profile = new FirmwareProfile({
+        ...firmware,
+        symbols: { ...firmware.symbols, ...bindings.symbols },
+      });
+    expect(profile.id).toBe(bindings.profile);
     await profile.preflight(bundle);
     const imported = (await import(
       /* @vite-ignore */ pathToFileURL(resolve(runtimePath)).href
@@ -76,18 +81,14 @@ test.skipIf(!process.env.XHALF_DAT || !process.env.XHALF_BASELINE)(
       display = new NativeDisplay(core),
       input = new NativeInput(core);
     new SdkServices(core);
-    new GuestCalls(core);
     new SdkGraphics(core);
     new BulkAcceleration(core);
     const startup = new FirstSetup(core, input);
-    core.nextCall = () => {
+    core.beforeStep = () => {
       startup.poll();
-      return input.nextCall();
+      input.poll();
     };
     core.afterStep = () => display.poll();
-    core.completeCall = (call, status) => {
-      if (call.kind === 'input') input.complete(status);
-    };
     const deadline = performance.now() + 120000;
     const until = (predicate: () => boolean) => {
       while (!predicate()) {
@@ -197,8 +198,8 @@ test.skipIf(!process.env.XHALF_DAT || !process.env.XHALF_BASELINE)(
       expect(language()).toBe(
         cpu.read(
           profile.address('ui.language_table') +
-            nextIndex * profile.sdk.input.language_stride +
-            profile.sdk.input.language_id_offset,
+            nextIndex * bindings.language.stride +
+            bindings.language.id_offset,
           1,
         )[0],
       );

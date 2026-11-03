@@ -12,7 +12,34 @@ XHALF_DAT=./.private/FPUPDATE.DAT npm run test:performance
 
 This command rebuilds the web app and tests the production preview. It does not rebuild Wasm; run `npm run wasm:build` first after changing C sources or build flags. Do not modify runtime artifacts during a measurement.
 
-## Current Dynarmic acceptance
+## Input device acceptance
+
+Measured on 2026-11-03 with the input device migration, a normal Dynarmic Wasm
+build, Chromium and `XHALF_BROWSER_NO_TRAP=1`. The workload uses automatic setup
+through screen controls and 100 Up/Down gestures in the main menu. Three fresh
+contexts booted from the DAT. No other builds or emulator tests from this
+validation session ran during measurement.
+
+| Browser  | Three cold boots           | Navigation samples | Navigation P95 |
+| -------- | -------------------------- | ------------------ | -------------- |
+| Chromium | 16.986 / 15.942 / 17.980 s | 100                | 234.3 ms       |
+
+The unchanged 120-second boot and 300-ms navigation P95 gates passed. Assertion,
+input, storage and undefined-instruction counters were zero. The gestures include
+controller scans and native IRQ/task execution. Earlier SDK-message navigation
+measurements below cover a different input path and are not a paired comparison.
+
+An initial 300-ms gap between generated gestures recorded P95 340.7 ms and failed
+the navigation gate. The 100-ms gap passed the full menu matrix and the measurement
+above. Both attempts, runtime identities, source hashes and load observations are
+retained under `.private/performance/input-devices-20261103/`; source and served
+assets stayed fixed within the passing run. The governor was `powersave`.
+
+Functional verification separately covered the guarded native input/IRQ/task
+acceptance, native display completion, all three power cases, manual setup,
+pointer scaling, cancellation/recovery and the 44-case browser menu matrix.
+
+## Backend acceptance before input devices
 
 Measured on 2026-11-03 with public dynarmic.js release
 `157791a52fd1ffe5f9d44dc95b3990736825044e` and the retained host optimizations:

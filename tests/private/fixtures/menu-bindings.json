@@ -1,0 +1,41 @@
+{
+  "profile": "xhalf-main-21aa469f",
+  "symbols": {
+    "ui.main_scrawl": {
+      "address": 1075961808,
+      "kind": "function",
+      "optional": false,
+      "group": "test.menu",
+      "guard": {
+        "length": 16,
+        "sha256": "42b619e454b47102371279e1750b18c9f8092de375619f3b9fe54fee7d6f9bee"
+      }
+    },
+    "ui.option_scrawl": {
+      "address": 1075970084,
+      "kind": "function",
+      "optional": false,
+      "group": "test.menu",
+      "guard": {
+        "length": 16,
+        "sha256": "176138dd468c980f2896df2465f01245a9ec225883cffb8c3a7f7ecbbfee3b05"
+      }
+    },
+    "ui.scrawl_callback": {
+      "address": 1094455332,
+      "kind": "data",
+      "optional": false,
+      "group": "test.menu"
+    },
+    "ui.language_table": {
+      "address": 1094417940,
+      "kind": "data",
+      "optional": false,
+      "group": "test.menu"
+    }
+  },
+  "language": {
+    "stride": 2,
+    "id_offset": 0
+  }
+}
